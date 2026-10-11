@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState, useId } from "react";
 import Link from "next/link";
 import FlowchartDiagram from "../components/FlowchartDiagram";
-import { DEFAULT_DIAGRAM, NODE_TYPES, generateC, generatePython, hasDiagramShape, validateConnection } from "../../lib/flowchart";
+import { DEFAULT_DIAGRAM, NODE_TYPES, generateC, generatePython, hasDiagramShape, previewFlowchart, validateConnection } from "../../lib/flowchart";
 import styles from "./workspace.module.css";
 
 const STORAGE_KEY = "maptocode:diagram:v1";
@@ -103,6 +103,9 @@ export default function WorkspaceClient() {
   const [connectionTarget, setConnectionTarget] = useState("ask-age");
   const [connectionBranch, setConnectionBranch] = useState("true");
   const [canvasZoom, setCanvasZoom] = useState(1);
+  const [sampleInputs, setSampleInputs] = useState(() => Object.fromEntries(DEFAULT_DIAGRAM.nodes.filter((node) => node.type === "Input").map((node) => [node.id, "18"])));
+  const [previewRun, setPreviewRun] = useState(null);
+  const [previewIndex, setPreviewIndex] = useState(0);
   const [dragging, setDragging] = useState(false);
   const dragRef = useRef(null);
   const canvasRef = useRef(null);
@@ -114,6 +117,8 @@ export default function WorkspaceClient() {
   const generation = useMemo(() => codeLanguage === "C" ? generateC(diagram) : generatePython(diagram), [diagram, codeLanguage]);
   const nodeMap = useMemo(() => new Map(diagram.nodes.map((node) => [node.id, node])), [diagram.nodes]);
   const selectedNode = nodeMap.get(selectedId);
+  const previewSteps = previewRun?.diagram === diagram ? previewRun.steps : null;
+  const activePreviewStep = previewSteps?.[previewIndex];
 
   useEffect(() => {
     const timeout = window.setTimeout(() => {
@@ -308,6 +313,18 @@ export default function WorkspaceClient() {
     setActionMessage(result.errors.length ? result.errors[0] : `${codeLanguage} refreshed from your current flowchart.`);
   }
 
+  function startPreview() {
+    try {
+      const steps = previewFlowchart(diagram, sampleInputs);
+      setPreviewRun({ diagram, steps });
+      setPreviewIndex(0);
+      setActionMessage("Flow preview started. Step through the highlighted path to follow the logic.");
+    } catch (error) {
+      setPreviewRun(null);
+      setActionMessage(error instanceof Error ? error.message : "This flowchart could not be previewed.");
+    }
+  }
+
   async function copyCode() {
     if (!generation.code) return;
     try {
@@ -437,7 +454,7 @@ export default function WorkspaceClient() {
                   const size = NODE_SIZE[node.type] ?? { width: 184, height: 78 };
                   const supported = NODE_TYPES.has(node.type);
                   return (
-                    <button key={node.id} type="button" className={`${styles.flowNode} ${styles[`node${node.type}`] ?? styles.nodeUnknown} ${selectedId === node.id ? styles.selectedNode : ""}`} style={{ left: node.position.x, top: node.position.y, width: size.width, height: size.height }} onPointerDown={(event) => beginDrag(event, node)} onClick={() => selectNode(node.id)} aria-pressed={selectedId === node.id} title="Drag to move this block; select to edit and connect it" aria-label={`${node.type}: ${node.label || "Untitled block"}. Select to edit or connect; drag to move.`}>
+                    <button key={node.id} type="button" className={`${styles.flowNode} ${styles[`node${node.type}`] ?? styles.nodeUnknown} ${selectedId === node.id ? styles.selectedNode : ""} ${activePreviewStep?.nodeId === node.id ? styles.previewNode : ""}`} style={{ left: node.position.x, top: node.position.y, width: size.width, height: size.height }} onPointerDown={(event) => beginDrag(event, node)} onClick={() => selectNode(node.id)} aria-pressed={selectedId === node.id} title="Drag to move this block; select to edit and connect it" aria-label={`${node.type}: ${node.label || "Untitled block"}. Select to edit or connect; drag to move.`}>
                       <span className={styles.nodeType}>{supported ? node.type : "Unsupported"}</span><strong>{node.label || "Untitled block"}</strong><span className={styles.nodeDetail}>{nodeDetail(node)}</span>
                     </button>
                   );
@@ -477,6 +494,15 @@ export default function WorkspaceClient() {
               {generation.errors.length ? <div className={styles.validationBox} role="status"><div><span>!</span><strong>Fix these items to generate {codeLanguage}</strong></div><ul>{generation.errors.map((error, index) => <li key={`${index}-${error}`}>{error}</li>)}</ul></div> : <div className={styles.validMessage}><span>✓</span> Diagram checks passed. Preview updates as you edit.</div>}
               {generation.code ? <pre className={styles.generatedCode} aria-label="Generated Python code"><code>{generation.code}</code></pre> : <div className={styles.codeEmpty}>Your Python will appear here once the flowchart is complete.</div>}
               <div className={styles.codeScope}>{codeLanguage === "C" ? "C supports whole-number arithmetic (+, -, *) and one comparison per Decision. Text input reads one word. Division, decimals, loops, and multiple decisions are not supported yet." : "Python supports one Start and End, straight-line blocks, and one True/False Decision. Loops and multiple decisions are not supported yet."}</div>
+            </section>
+
+                <section className={styles.previewPanel} aria-labelledby="preview-title">
+              <div className={styles.panelHeader}><div className={styles.panelTitle}><span className={styles.panelIcon}>▷</span><div><h2 id="preview-title">Walk through the flow</h2><span>Try sample values and follow the selected path</span></div></div></div>
+              <p className={styles.previewExplanation}>This is a local diagram preview. It does not execute the generated code.</p>
+              {diagram.nodes.filter((node) => node.type === "Input").map((node) => <label className={styles.previewInput} key={node.id}><span>{node.prompt || node.label}</span><input value={sampleInputs[node.id] ?? ""} onChange={(event) => { setSampleInputs((current) => ({ ...current, [node.id]: event.target.value })); setPreviewRun(null); }} placeholder={node.inputType === "number" ? "Enter a whole number" : "Enter sample text"} /></label>)}
+              <div className={styles.previewActions}><button type="button" onClick={startPreview} disabled={generation.errors.length > 0}>Start preview</button>{previewSteps && <><button type="button" onClick={() => setPreviewIndex((index) => Math.max(0, index - 1))} disabled={previewIndex === 0}>← Back</button><button type="button" onClick={() => setPreviewIndex((index) => Math.min(previewSteps.length - 1, index + 1))} disabled={previewIndex >= previewSteps.length - 1}>Next →</button></>}</div>
+              {previewSteps && <div className={styles.previewResult} aria-live="polite"><div><strong>Step {previewIndex + 1} of {previewSteps.length}</strong><span>{activePreviewStep.type}: {activePreviewStep.label}{activePreviewStep.branch ? ` · ${activePreviewStep.branch === "true" ? "True" : "False"} path` : ""}</span></div>{activePreviewStep.output && <p>Output: <strong>{activePreviewStep.output}</strong></p>}{previewSteps.filter((step) => step.output).length > 0 && <small>Outputs so far: {previewSteps.slice(0, previewIndex + 1).filter((step) => step.output).map((step) => step.output).join(" · ")}</small>}</div>}
+              {generation.errors.length > 0 && <p className={styles.previewHint}>Fix the validation issues above to start a walkthrough.</p>}
             </section>
           </aside>
         </div>

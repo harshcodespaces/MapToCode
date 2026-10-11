@@ -131,6 +131,103 @@ function parseExpression(source) {
   return { tokens, identifiers, hasComparison, python: tokens.join(" ") };
 }
 
+function evaluateExpression(source, variables) {
+  const tokens = tokenizeExpression(source);
+  let cursor = 0;
+  const precedence = { or: 1, and: 2, "==": 3, "!=": 3, "<": 3, "<=": 3, ">": 3, ">=": 3, "+": 4, "-": 4, "*": 5, "/": 5, "//": 5, "%": 5 };
+
+  function primary() {
+    const token = tokens[cursor++];
+    if (token === "(") {
+      const value = expression(0);
+      if (tokens[cursor++] !== ")") throw new Error("Add a closing parenthesis.");
+      return value;
+    }
+    if (token === "+" || token === "-") {
+      const value = Number(primary());
+      return token === "-" ? -value : value;
+    }
+    if (token === "not") return !expression(3);
+    if (token === "True") return true;
+    if (token === "False") return false;
+    if (/^\d/.test(token ?? "")) return Number(token);
+    if (Object.hasOwn(variables, token)) return variables[token];
+    throw new Error(`“${token ?? "value"}” does not have a value yet.`);
+  }
+
+  function expression(minimum) {
+    let left = primary();
+    while (cursor < tokens.length && (precedence[tokens[cursor]] ?? -1) >= minimum) {
+      const operator = tokens[cursor++];
+      const level = precedence[operator];
+      const right = expression(level + 1);
+      if (operator === "or") left = Boolean(left || right);
+      else if (operator === "and") left = Boolean(left && right);
+      else if (operator === "==") left = left === right;
+      else if (operator === "!=") left = left !== right;
+      else if (operator === "<") left = left < right;
+      else if (operator === "<=") left = left <= right;
+      else if (operator === ">") left = left > right;
+      else if (operator === ">=") left = left >= right;
+      else if (operator === "+") left = Number(left) + Number(right);
+      else if (operator === "-") left = Number(left) - Number(right);
+      else if (operator === "*") left = Number(left) * Number(right);
+      else if (operator === "/" || operator === "//") {
+        if (Number(right) === 0) throw new Error("A calculation tried to divide by zero.");
+        left = operator === "/" ? Number(left) / Number(right) : Math.floor(Number(left) / Number(right));
+      }
+      else if (operator === "%") left = Number(left) % Number(right);
+    }
+    return left;
+  }
+
+  const value = expression(0);
+  if (cursor !== tokens.length) throw new Error(`Unexpected “${tokens[cursor]}”.`);
+  return value;
+}
+
+export function previewFlowchart(diagram, inputValues = {}) {
+  const validation = generatePython(diagram);
+  if (validation.errors.length) throw new Error("Fix the flowchart checks before previewing its path.");
+
+  const nodes = new Map(diagram.nodes.map((node) => [node.id, node]));
+  const outgoing = new Map(diagram.nodes.map((node) => [node.id, diagram.edges.filter((edge) => edge.from === node.id)]));
+  const variables = Object.create(null);
+  const steps = [];
+  let current = diagram.nodes.find((node) => node.type === "Start");
+  let safety = diagram.nodes.length + 1;
+
+  while (current && safety-- > 0) {
+    steps.push({ nodeId: current.id, type: current.type, label: current.label });
+    if (current.type === "End") break;
+    if (current.type === "Input") {
+      const raw = inputValues[current.id];
+      if (raw == null || String(raw).trim() === "") throw new Error(`Enter a sample value for “${current.label}”.`);
+      if (current.inputType === "number") {
+        const value = Number(raw);
+        if (!Number.isFinite(value) || !/^[-+]?\d+$/.test(String(raw).trim())) throw new Error(`“${current.label}” needs a whole number for this preview.`);
+        variables[current.variable] = value;
+      } else variables[current.variable] = String(raw);
+    } else if (current.type === "Process") {
+      const match = /^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=(?!=)\s*(.+?)\s*$/.exec(current.assignment);
+      variables[match[1]] = evaluateExpression(match[2], variables);
+    } else if (current.type === "Decision") {
+      const result = Boolean(evaluateExpression(current.condition, variables));
+      steps[steps.length - 1].branch = result ? "true" : "false";
+      current = nodes.get(outgoing.get(current.id).find((edge) => edge.branch === steps.at(-1).branch).to);
+      continue;
+    } else if (current.type === "Output") {
+      steps[steps.length - 1].output = (current.outputMode ?? "message") === "expression"
+        ? String(evaluateExpression(current.expression, variables))
+        : current.message;
+    }
+    current = nodes.get(outgoing.get(current.id)[0]?.to);
+  }
+
+  if (safety < 0 || steps.at(-1)?.type !== "End") throw new Error("The preview could not reach the End block.");
+  return steps;
+}
+
 function isIdentifier(value) {
   return typeof value === "string"
     && value.length <= 64
