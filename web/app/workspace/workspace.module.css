@@ -24,8 +24,62 @@
 .previewResult small{color:#818a78;line-height:1.5}
 .previewHint{padding:0 14px 14px;color:#a45f4e;font-size:9px}
 
+@media(max-width:600px){
+  .workspacePage{min-height:100svh}
+  .header{padding-left:max(16px,env(safe-area-inset-left));padding-right:max(16px,env(safe-area-inset-right))}
+  .workspaceBody{padding-bottom:calc(28px + env(safe-area-inset-bottom))}
+  .localBadge{font-size:8px}
+  .breadcrumb{font-size:11px}
+  .eyebrow,.sectionEyebrow{font-size:9px}
+  .titleRow p{font-size:12px;line-height:1.5}
+  .projectActions{width:100%;justify-content:flex-start}
+  .projectActions button{height:auto;min-height:44px;padding:0 11px;font-size:10px}
+  .saveStatus{font-size:10px}
+  .panelHeader,.codePanelHeader{min-height:64px}
+  .panelTitle h2{font-size:13px}
+  .panelTitle>div>span{font-size:10px}
+  .canvasStatus{font-size:10px}
+  .palette{gap:7px}
+  .palette button{min-height:42px;padding:0 10px;font-size:10px}
+  .canvasViewport{height:min(54svh,420px);min-height:300px;overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
+  .canvasSurface{touch-action:pan-x pan-y}
+  .flowNode{touch-action:none}
+  .canvasBottom{font-size:9px;line-height:1.5}
+  .connectionForm{gap:9px}
+  .connectionForm p{font-size:10px;line-height:1.5}
+  .connectionForm label,.field{font-size:10px}
+  .connectionForm select,.field input,.field textarea,.field select{min-height:44px;padding:10px;font-size:16px}
+  .connectButton{min-height:44px;font-size:11px}
+  .connectionsList{padding:14px 10px}
+  .connectionsList li{grid-template-columns:minmax(0,1fr) 48px minmax(0,1fr) 36px;gap:6px;font-size:10px}
+  .connectionsList li button{width:36px;height:36px;font-size:20px}
+  .listHeading>span:first-child,.emptyEdges{font-size:9px}
+  .field>span,.field small{font-size:10px}
+  .inspectorFields{gap:13px;padding:14px 11px}
+  .fixedBlockNote,.selectHint{font-size:11px}
+  .codeActions button{height:42px;padding:0 11px;font-size:10px}
+  .codeActions{gap:8px}
+  .codeActions>div{gap:7px}
+  .validationBox li,.validationBox>div,.validMessage,.codeScope{font-size:10px;line-height:1.55}
+  .previewExplanation,.previewInput,.previewResult,.previewHint{font-size:11px}
+  .previewInput input{min-height:44px;padding:10px;font-size:16px}
+  .previewActions button{min-height:44px;padding:0 12px;font-size:10px}
+  .previewResult{line-height:1.5}
+  .actionMessage{right:max(12px,env(safe-area-inset-right));bottom:calc(12px + env(safe-area-inset-bottom));font-size:12px;line-height:1.45}
+  .localNote{font-size:10px;line-height:1.5}
+}
+
 .paletteHeader{display:flex;align-items:center;gap:9px;padding:10px 12px 0;color:#838b7c;font-size:9px}.paletteHeader .sectionEyebrow{color:#76845d}.palette{padding-top:8px}.palette button{height:32px;padding-inline:10px;font-size:9px}.connectionForm{grid-template-columns:minmax(120px,1fr) auto 16px minmax(120px,1fr) auto;background:#f9faf6}.connectionForm>div:first-child{grid-column:1/-1}.connectionForm>div:first-child p{font-size:9px}.connectionForm label{font-size:9px}.connectionForm select{height:36px;font-size:10px}.connectButton{height:36px;padding-inline:13px;font-size:9px}.connectButton:disabled{opacity:.45;cursor:not-allowed}.canvasTools{min-height:42px;padding:6px 12px;display:flex;align-items:center;justify-content:space-between;gap:12px;border-top:1px solid #e8ece5;background:#fbfcf8;color:#76816e;font-size:9px}.canvasTools>span{font-weight:600}.canvasTools>div{display:flex;align-items:center;gap:5px}.canvasTools button{min-width:30px;height:28px;padding:0 8px;border:1px solid #dfe5db;border-radius:4px;background:#fff;color:#606b57;font-size:11px;cursor:pointer}.canvasTools button:last-child{margin-left:4px;font-size:9px;font-weight:600}.canvasTools button:hover:not(:disabled){background:#eef2e7;border-color:#cbd5bb}.canvasTools button:disabled{opacity:.4;cursor:not-allowed}.canvasTools output{min-width:42px;color:#69745f;font:8px ui-monospace,SFMono-Regular,Menlo,monospace;text-align:center}.canvasViewport{scrollbar-color:#c5ceba #f5f7f1;scrollbar-width:thin}.canvasSurface{transform-origin:top left}.flowNode:focus-visible{z-index:2;outline:3px solid #9fad58;outline-offset:3px}.emptyCanvas{display:flex;align-items:center;flex-direction:column;gap:8px;white-space:normal;text-align:center}.emptyCanvas strong{color:#59644e;font-size:14px}.emptyCanvas span{color:#818a78;font-size:10px}.emptyCanvas button{height:31px;padding:0 11px;border:1px solid #d5dfc7;border-radius:5px;background:#f1f5e8;color:#5c7043;font-size:9px;font-weight:600;cursor:pointer}.emptyCanvas button:hover{background:#e8eedc}
 @media(max-width:1120px){.connectionForm{grid-template-columns:minmax(100px,1fr) auto 14px minmax(100px,1fr) auto}.connectButton{grid-column:auto}}
 @media(max-width:600px){.paletteHeader{align-items:flex-start;flex-direction:column;gap:4px}.canvasTools{align-items:flex-start;flex-direction:column;padding:8px 9px}.connectionForm{grid-template-columns:minmax(0,1fr) 14px minmax(0,1fr);gap:7px;padding:12px 9px}.connectionForm>div:first-child{grid-column:1/-1}.connectionForm label:nth-of-type(1){grid-column:1}.connectionForm label:nth-of-type(2){grid-column:1}.connectionForm .toArrow{display:none}.connectionForm label:last-of-type{grid-column:2/4;grid-row:2}.connectionForm .connectButton{grid-column:2/4;grid-row:3}.canvasViewport{height:365px}.canvasTools button{height:30px}.emptyCanvas{max-width:calc(100% - 32px);white-space:normal}}
 @media(max-width:820px){.previewPanel{grid-column:1/-1}}
 @media(prefers-reduced-motion:reduce){.previewNode{animation:none}}
+
+@media(max-width:600px){
+  .localBadge{font-size:8px}
+  .canvasViewport{height:min(54svh,420px)}
+  .canvasBottom{font-size:9px}
+  .connectionForm>div:first-child p{font-size:10px}
+  .canvasTools button{min-width:40px;height:40px;font-size:15px}
+  .canvasTools button:last-child{font-size:10px}
+}

@@ -3,3 +3,24 @@
 @media(max-width:760px){.header{height:66px;padding:0 20px}.nav{gap:0}.nav>a:not(.navButton){display:none}.navButton{font-size:10px;padding:10px 12px}.brand{font-size:16px}.hero{display:flex;flex-direction:column;align-items:stretch;padding:64px 22px 58px;gap:30px}.heroCopy{padding:0}.hero h1{font-size:59px;letter-spacing:-3.8px}.heroText{font-size:13px}.heroFootnote{margin-top:30px}.heroPreview{padding:0 10px 17px}.previewCode{width:83%}.previewCaption{font-size:6px}.heroBottom{left:22px;right:22px}.heroBottom span,.heroBottom a{font-size:6px}.valueBar{margin:0 22px;padding:19px 0;gap:13px;font-size:8px}.valueBar i{display:none}.howSection{display:block;margin:0 22px;padding:78px 0}.sectionIntro h2{font-size:42px}.steps{margin-top:40px;grid-template-columns:1fr;gap:20px}.step{display:grid;grid-template-columns:34px 32px 1fr;align-items:center;column-gap:8px;padding-top:13px}.stepNumber{grid-row:1}.stepGlyph{grid-row:1;margin:0}.step h3{grid-row:1}.step p{grid-column:3;margin:8px 0 12px}.exampleSection{margin:0 22px;padding-bottom:75px}.exampleHeader{display:block}.exampleHeader h2{font-size:27px}.exampleHeader>span{display:block;margin-top:10px}.exampleCard{grid-template-columns:1fr}.exampleCanvas{padding:12px 10px}.exampleDescription{border-left:0;border-top:1px solid #e0e5da;padding:19px}.finalCta{margin:0 22px 55px;padding:22px;align-items:flex-start;gap:17px;flex-direction:column}.finalCta h2{font-size:20px}.footer{margin:0 22px;gap:10px}.footer>span:nth-child(2){display:none}}
 @media(max-width:390px){.hero h1{font-size:51px}.heroActions{gap:16px}.primaryButton{gap:13px;padding:14px}.valueBar{font-size:7px}.sectionIntro h2{font-size:37px}.footer>span:last-child{font-size:6px}}
 @media(prefers-reduced-motion:reduce){.page *{scroll-behavior:auto!important;transition:none!important}}
+
+@media(max-width:760px){
+  .header{padding-left:max(20px,env(safe-area-inset-left));padding-right:max(20px,env(safe-area-inset-right))}
+  .navButton{min-height:44px;display:inline-flex;align-items:center}
+  .hero{padding-bottom:calc(64px + env(safe-area-inset-bottom))}
+  .heroActions{align-items:stretch;flex-wrap:wrap;gap:12px}
+  .primaryButton{min-height:44px}
+  .secondaryButton{min-height:44px;display:inline-flex;align-items:center}
+  .valueBar{flex-wrap:wrap;row-gap:12px}
+  .exampleSection .exampleDescription a,.inlineLink{min-height:44px;display:inline-flex;align-items:center}
+  .finalCta{padding-bottom:max(22px,env(safe-area-inset-bottom))}
+}
+@media(max-width:390px){
+  .valueBar{justify-content:center;column-gap:18px}
+  .heroBottom span,.heroBottom a{font-size:7px}
+}
+@media(max-width:360px){
+  .heroBottom{align-items:flex-start;flex-direction:column;gap:6px}
+  .heroBottom span,.heroBottom a{font-size:8px}
+  .footer{flex-wrap:wrap;padding:12px 0}
+}
