@@ -8,7 +8,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "node --import ./tests/flowchart.test.js --import ./tests/contracts.test.js"
+    "test": "node --import ./tests/flowchart.test.js --import ./tests/contracts.test.js --import ./tests/pseudocode.test.js"
   },
   "dependencies": {
     "next": "16.4.0",

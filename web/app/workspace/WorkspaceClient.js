@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState, useId } from "react";
 import Link from "next/link";
 import FlowchartDiagram from "../components/FlowchartDiagram";
 import { DEFAULT_DIAGRAM, NODE_TYPES, generateC, generatePython, hasDiagramShape, previewFlowchart, validateConnection } from "../../lib/flowchart";
+import { diagramToPseudocode, pseudocodeToDiagram, PSEUDOCODE_EXAMPLES, tidyPseudocode } from "../../lib/pseudocode";
 import styles from "./workspace.module.css";
 
 const STORAGE_KEY = "maptocode:diagram:v1";
@@ -14,7 +15,7 @@ const NODE_SIZE = {
   Input: { width: 184, height: 78 },
   Process: { width: 184, height: 78 },
   Output: { width: 184, height: 78 },
-  Decision: { width: 154, height: 96 },
+  Decision: { width: 180, height: 128 },
 };
 
 function makeId() {
@@ -83,9 +84,11 @@ function edgePath(edge, nodeMap) {
   if (!from || !to) return null;
   const fromSize = NODE_SIZE[from.type] ?? { width: 184, height: 78 };
   const toSize = NODE_SIZE[to.type] ?? { width: 184, height: 78 };
-  const x1 = from.position.x + fromSize.width;
+  const fromInset = ["Input", "Output"].includes(from.type) ? fromSize.width * 0.07 : 0;
+  const toInset = ["Input", "Output"].includes(to.type) ? toSize.width * 0.07 : 0;
+  const x1 = from.position.x + fromSize.width - fromInset;
   const y1 = from.position.y + fromSize.height / 2;
-  const x2 = to.position.x;
+  const x2 = to.position.x + toInset;
   const y2 = to.position.y + toSize.height / 2;
   const bend = Math.max(36, Math.min(100, Math.abs(x2 - x1) * 0.45));
   return `M ${x1} ${y1} C ${x1 + bend} ${y1}, ${x2 - bend} ${y2}, ${x2} ${y2}`;
@@ -93,12 +96,17 @@ function edgePath(edge, nodeMap) {
 
 export default function WorkspaceClient() {
   const [diagram, setDiagram] = useState(DEFAULT_DIAGRAM);
+  const [history, setHistory] = useState({ past: [], future: [] });
   const [selectedId, setSelectedId] = useState("adult-check");
   const [hydrated, setHydrated] = useState(false);
   const [saveLabel, setSaveLabel] = useState("Loading local project…");
   const [actionMessage, setActionMessage] = useState("");
   const [copied, setCopied] = useState(false);
   const [codeLanguage, setCodeLanguage] = useState("Python");
+  const [editorMode, setEditorMode] = useState("flowchart");
+  const [pseudocode, setPseudocode] = useState(() => diagramToPseudocode(DEFAULT_DIAGRAM));
+  const [pseudocodeHistory, setPseudocodeHistory] = useState([]);
+  const [pseudocodeDirty, setPseudocodeDirty] = useState(false);
   const [connectionSource, setConnectionSource] = useState("start");
   const [connectionTarget, setConnectionTarget] = useState("ask-age");
   const [connectionBranch, setConnectionBranch] = useState("true");
@@ -119,6 +127,41 @@ export default function WorkspaceClient() {
   const selectedNode = nodeMap.get(selectedId);
   const previewSteps = previewRun?.diagram === diagram ? previewRun.steps : null;
   const activePreviewStep = previewSteps?.[previewIndex];
+
+  function updateDiagram(nextOrUpdate, { record = true } = {}) {
+    const current = diagram;
+    const next = typeof nextOrUpdate === "function" ? nextOrUpdate(current) : nextOrUpdate;
+    if (next === current) return;
+    if (record) {
+      setHistory((currentHistory) => ({
+        past: [...currentHistory.past, current].slice(-100),
+        future: [],
+      }));
+    }
+    setDiagram(next);
+  }
+
+  function undoDiagram() {
+    const previous = history.past.at(-1);
+    if (!previous) return;
+    setHistory((currentHistory) => ({
+      past: currentHistory.past.slice(0, -1),
+      future: [...currentHistory.future, diagram].slice(-100),
+    }));
+    setDiagram(previous);
+    setActionMessage("Last diagram change undone.");
+  }
+
+  function redoDiagram() {
+    const next = history.future.at(-1);
+    if (!next) return;
+    setHistory((currentHistory) => ({
+      past: [...currentHistory.past, diagram].slice(-100),
+      future: currentHistory.future.slice(0, -1),
+    }));
+    setDiagram(next);
+    setActionMessage("Diagram change restored.");
+  }
 
   useEffect(() => {
     const timeout = window.setTimeout(() => {
@@ -201,6 +244,13 @@ export default function WorkspaceClient() {
     recenterAfterZoomRef.current = true;
     setCanvasZoom(Math.max(0.45, zoom));
   }
+  useEffect(() => {
+    if (!hydrated) return undefined;
+    const frame = window.requestAnimationFrame(fitCanvas);
+    return () => window.cancelAnimationFrame(frame);
+    // Run once after browser storage and the canvas layout are ready.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hydrated]);
 
   function changeCanvasZoom(amount) {
     recenterAfterZoomRef.current = true;
@@ -210,10 +260,23 @@ export default function WorkspaceClient() {
   function selectNode(id) {
     setSelectedId(id);
     setConnectionSource(id);
+    const sourceNode = nodeMap.get(id);
+    const availableTarget = diagram.nodes.find((node) => node.id !== id && !diagram.edges.some((edge) =>
+      edge.from === id && edge.to === node.id && (sourceNode?.type !== "Decision" || edge.branch === connectionBranch),
+    ));
+    if (availableTarget) setConnectionTarget(availableTarget.id);
+    if (sourceNode?.type === "Decision") {
+      const usedBranches = new Set(diagram.edges.filter((edge) => edge.from === id).map((edge) => edge.branch));
+      if (usedBranches.has(connectionBranch)) setConnectionBranch(usedBranches.has("true") ? "false" : "true");
+    }
+  }
+
+  function changeConnectionSource(id) {
+    selectNode(id);
   }
 
   function updateNode(id, changes) {
-    setDiagram((current) => ({
+    updateDiagram((current) => ({
       ...current,
       nodes: current.nodes.map((node) => node.id === id ? { ...node, ...changes } : node),
     }));
@@ -225,8 +288,8 @@ export default function WorkspaceClient() {
       setActionMessage("A project can contain up to 80 blocks.");
       return;
     }
-    const node = defaultNode(type, diagram.nodes.length - 2);
-    setDiagram((current) => ({ ...current, nodes: [...current.nodes, node] }));
+    const node = defaultNode(type, Math.max(0, diagram.nodes.length - 2));
+    updateDiagram((current) => ({ ...current, nodes: [...current.nodes, node] }));
     setSelectedId(node.id);
     setActionMessage(`${type} block added. Connect it to the flowchart when you’re ready.`);
   }
@@ -235,7 +298,7 @@ export default function WorkspaceClient() {
     if (!selectedNode) return;
     const removedId = selectedNode.id;
     const remainingNodes = diagram.nodes.filter((node) => node.id !== removedId);
-    setDiagram((current) => ({
+    updateDiagram((current) => ({
       ...current,
       nodes: current.nodes.filter((node) => node.id !== removedId),
       edges: current.edges.filter((edge) => edge.from !== removedId && edge.to !== removedId),
@@ -256,23 +319,108 @@ export default function WorkspaceClient() {
       return;
     }
     const edge = { id: makeId(), from: connectionSource, to: connectionTarget, ...(branch ? { branch } : {}) };
-    setDiagram((current) => ({ ...current, edges: [...current.edges, edge] }));
+    updateDiagram((current) => ({ ...current, edges: [...current.edges, edge] }));
     setActionMessage(source.type === "Decision" ? `${branch === "true" ? "True" : "False"} path connected.` : "Blocks connected.");
   }
 
   function restoreExample() {
     if (!window.confirm("Replace this browser’s current flowchart with the original age check example? Export a JSON copy first if you want to keep it.")) return;
     const example = structuredClone(DEFAULT_DIAGRAM);
-    setDiagram(example);
+    updateDiagram(example);
     setSelectedId("adult-check");
     setConnectionSource("start");
     setConnectionTarget("ask-age");
     setConnectionBranch("true");
+    setPseudocodeDirty(false);
     setActionMessage("The example flowchart has been restored.");
   }
 
+  function createNewFlowchart() {
+    if (!window.confirm("Start a new blank flowchart? This replaces the current project in this browser. Export a JSON copy first if you want to keep it.")) return;
+    updateDiagram({ id: makeId(), name: "Untitled flowchart", nodes: [], edges: [] });
+    setSelectedId("");
+    setConnectionSource("");
+    setConnectionTarget("");
+    setPseudocode("BEGIN\nEND");
+    setPseudocodeHistory([]);
+    setPseudocodeDirty(false);
+    setActionMessage("Blank flowchart created. Add a Start block to begin.");
+  }
+
+  function changeEditorMode(mode) {
+    if (mode === "pseudocode" && !pseudocodeDirty) {
+      setPseudocode(diagramToPseudocode(diagram));
+      setPseudocodeHistory([]);
+    }
+    setEditorMode(mode);
+  }
+
+  function updatePseudocode(value) {
+    setPseudocodeHistory((historyItems) => [...historyItems, pseudocode].slice(-80));
+    setPseudocode(value);
+    setPseudocodeDirty(true);
+  }
+
+  function undoPseudocode() {
+    const previous = pseudocodeHistory.at(-1);
+    if (previous == null) return;
+    setPseudocodeHistory((historyItems) => historyItems.slice(0, -1));
+    setPseudocode(previous);
+    setPseudocodeDirty(true);
+  }
+
+  function insertPseudocode(template) {
+    const lines = pseudocode.split(/\r?\n/);
+    const endIndex = lines.findLastIndex((line) => /^\s*END\s*$/i.test(line));
+    lines.splice(endIndex >= 0 ? endIndex : lines.length, 0, ...template.split("\n"));
+    updatePseudocode(lines.join("\n"));
+  }
+
+  function loadPseudocodeExample(exampleId) {
+    const example = PSEUDOCODE_EXAMPLES.find((item) => item.id === exampleId);
+    if (!example) return;
+    if (editorMode === "flowchart") {
+      if ((diagram.nodes.length || pseudocodeDirty) && !window.confirm(`Replace the current flowchart or unapplied pseudocode with “${example.title}”? Export a JSON copy first if you want to keep your current project.`)) return;
+      try {
+        const nextDiagram = pseudocodeToDiagram(example.source, example.title);
+        const validation = generatePython(nextDiagram);
+        if (validation.errors.length) throw new Error(validation.errors[0]);
+        updateDiagram(nextDiagram);
+        setSelectedId(nextDiagram.nodes[0]?.id ?? "");
+        setConnectionSource(nextDiagram.nodes[0]?.id ?? "");
+        setConnectionTarget(nextDiagram.nodes[1]?.id ?? "");
+        setPseudocode(example.source);
+        setPseudocodeDirty(false);
+        setActionMessage(`${example.title} loaded as a flowchart.`);
+      } catch (error) {
+        setActionMessage(error instanceof Error ? error.message : "This example could not be loaded.");
+      }
+      return;
+    }
+    if (pseudocodeDirty && !window.confirm("Replace the pseudocode you have edited with this example?")) return;
+    updatePseudocode(example.source);
+    setActionMessage(`${example.title} loaded into the pseudocode editor. Apply it to update your flowchart.`);
+  }
+
+  function applyPseudocode() {
+    try {
+      const nextDiagram = pseudocodeToDiagram(pseudocode, diagram.name);
+      const validation = generatePython(nextDiagram);
+      if (validation.errors.length) throw new Error(validation.errors[0]);
+      updateDiagram(nextDiagram);
+      setSelectedId(nextDiagram.nodes[0]?.id ?? "");
+      setConnectionSource(nextDiagram.nodes[0]?.id ?? "");
+      setConnectionTarget(nextDiagram.nodes[1]?.id ?? "");
+      setPseudocode(diagramToPseudocode(nextDiagram));
+      setPseudocodeDirty(false);
+      setActionMessage("Pseudocode applied. The flowchart and code preview are updated.");
+    } catch (error) {
+      setActionMessage(error instanceof Error ? error.message : "Check the pseudocode format and try again.");
+    }
+  }
+
   function removeEdge(edgeId) {
-    setDiagram((current) => ({ ...current, edges: current.edges.filter((edge) => edge.id !== edgeId) }));
+    updateDiagram((current) => ({ ...current, edges: current.edges.filter((edge) => edge.id !== edgeId) }));
     setActionMessage("Connection removed.");
   }
 
@@ -280,7 +428,7 @@ export default function WorkspaceClient() {
     if (event.button !== 0) return;
     event.preventDefault();
     event.currentTarget.setPointerCapture(event.pointerId);
-    dragRef.current = { id: node.id, pointerId: event.pointerId, startX: event.clientX, startY: event.clientY, x: node.position.x, y: node.position.y, moved: false };
+    dragRef.current = { id: node.id, pointerId: event.pointerId, startX: event.clientX, startY: event.clientY, x: node.position.x, y: node.position.y, moved: false, historyStarted: false, startDiagram: diagram };
     setSelectedId(node.id);
   }
 
@@ -291,15 +439,22 @@ export default function WorkspaceClient() {
     const dy = (event.clientY - drag.startY) / canvasZoom;
     if (Math.abs(dx) + Math.abs(dy) > 2) drag.moved = true;
     if (!drag.moved) return;
+    if (!drag.historyStarted) {
+      setHistory((currentHistory) => ({
+        past: [...currentHistory.past, drag.startDiagram].slice(-100),
+        future: [],
+      }));
+      drag.historyStarted = true;
+    }
     setDragging(true);
     const node = nodeMap.get(drag.id);
     const size = NODE_SIZE[node?.type] ?? { width: 184, height: 78 };
     const x = Math.max(8, Math.min(CANVAS.width - size.width - 8, drag.x + dx));
     const y = Math.max(8, Math.min(CANVAS.height - size.height - 8, drag.y + dy));
-    setDiagram((current) => ({
+    updateDiagram((current) => ({
       ...current,
       nodes: current.nodes.map((item) => item.id === drag.id ? { ...item, position: { x, y } } : item),
-    }));
+    }), { record: false });
   }
 
   function finishDrag(event) {
@@ -368,7 +523,7 @@ export default function WorkspaceClient() {
     try {
       if (file.size > 1_000_000) throw new Error("Choose a project file smaller than 1 MB.");
       const project = normalizeProject(JSON.parse(await file.text()));
-      setDiagram(project);
+      updateDiagram(project);
       setSelectedId(project.nodes[0]?.id ?? "");
       setConnectionSource(project.nodes[0]?.id ?? "");
       setConnectionTarget(project.nodes[1]?.id ?? project.nodes[0]?.id ?? "");
@@ -381,21 +536,45 @@ export default function WorkspaceClient() {
   }
 
   function updateProjectName(name) {
-    setDiagram((current) => ({ ...current, name: name.slice(0, 80) }));
+    updateDiagram((current) => ({ ...current, name: name.slice(0, 80) }));
   }
 
-  function field(label, value, onChange, options = {}) {
+  function field(label, value, nodeId, property, options = {}) {
     return (
-      <label className={styles.field} key={label}>
+      <label className={styles.field}>
         <span>{label}</span>
         {options.multiline ? (
-          <textarea value={value ?? ""} maxLength={options.maxLength ?? 240} rows={options.rows ?? 3} onChange={(event) => onChange(event.target.value)} />
+          <textarea value={value ?? ""} maxLength={options.maxLength ?? 240} rows={options.rows ?? 3} onChange={(event) => updateNode(nodeId, { [property]: event.target.value })} />
         ) : (
-          <input value={value ?? ""} maxLength={options.maxLength ?? 200} onChange={(event) => onChange(event.target.value)} />
+          <input value={value ?? ""} maxLength={options.maxLength ?? 200} onChange={(event) => updateNode(nodeId, { [property]: event.target.value })} />
         )}
         {options.help && <small>{options.help}</small>}
       </label>
     );
+  }
+
+  function handleCanvasKeyDown(event) {
+    const target = event.target;
+    const isEditingText = target instanceof HTMLElement && (
+      target.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName)
+    );
+    if (isEditingText) return;
+
+    if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "z") {
+      event.preventDefault();
+      if (event.shiftKey) redoDiagram();
+      else undoDiagram();
+      return;
+    }
+    if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "y") {
+      event.preventDefault();
+      redoDiagram();
+      return;
+    }
+    if (event.key === "Delete" || event.key === "Backspace") {
+      event.preventDefault();
+      deleteSelectedNode();
+    }
   }
 
   return (
@@ -409,17 +588,42 @@ export default function WorkspaceClient() {
         <div className={styles.breadcrumb}><Link href="/">MapToCode</Link><span>/</span><strong>Workspace</strong></div>
         <div className={styles.titleRow}>
           <div><div className={styles.eyebrow}>FLOWCHART WORKSPACE</div><label className={styles.projectNameLabel} htmlFor="project-name">Project name</label><input id="project-name" className={styles.projectName} value={diagram.name} maxLength={80} onChange={(event) => updateProjectName(event.target.value)} /><p>Build a diagram, connect its blocks, and see generated code as you work.</p></div>
-          <div className={styles.projectActions}><span className={styles.saveStatus} aria-live="polite">{saveLabel}</span><button type="button" onClick={saveProject}>Save</button><button type="button" onClick={exportProject}>Export JSON <span>↓</span></button><button type="button" onClick={() => importRef.current?.click()}>Open JSON <span>↑</span></button><button type="button" onClick={restoreExample}>Restore example</button><input ref={importRef} className={styles.fileInput} type="file" accept=".json,application/json" onChange={importProject} aria-label="Open a MapToCode project file" /></div>
+          <div className={styles.projectActions}><span className={styles.saveStatus} aria-live="polite">{saveLabel}</span><button type="button" onClick={createNewFlowchart}>New flowchart <span>＋</span></button><button type="button" onClick={undoDiagram} disabled={history.past.length === 0} title="Undo (Ctrl/⌘+Z)">Undo <span>↶</span></button><button type="button" onClick={redoDiagram} disabled={history.future.length === 0} title="Redo (Ctrl/⌘+Shift+Z)">Redo <span>↷</span></button><button type="button" onClick={saveProject}>Save</button><button type="button" onClick={exportProject}>Export JSON <span>↓</span></button><button type="button" onClick={() => importRef.current?.click()}>Open JSON <span>↑</span></button><button type="button" onClick={restoreExample}>Restore example</button><input ref={importRef} className={styles.fileInput} type="file" accept=".json,application/json" onChange={importProject} aria-label="Open a MapToCode project file" /></div>
         </div>
 
         <div className={styles.editorLayout}>
           <section className={styles.canvasPanel} aria-labelledby="canvas-title">
-            <div className={styles.panelHeader}><div className={styles.panelTitle}><span className={styles.panelIcon}>⌁</span><div><h2 id="canvas-title">Flowchart canvas</h2><span>{diagram.nodes.length} blocks · {diagram.edges.length} connections</span></div></div><div className={styles.canvasStatus}><span className={generation.errors.length ? styles.invalidDot : styles.validDot} />{generation.errors.length ? "Needs attention" : "Diagram valid"}</div></div>
+            <div className={styles.panelHeader}><div className={styles.panelTitle}><span className={styles.panelIcon}>⌁</span><div><h2 id="canvas-title">{editorMode === "pseudocode" ? "Pseudocode editor" : "Flowchart canvas"}</h2><span>{diagram.nodes.length} blocks · {diagram.edges.length} connections</span></div></div><div className={styles.canvasStatus}><span className={generation.errors.length || pseudocodeDirty ? styles.invalidDot : styles.validDot} />{pseudocodeDirty ? "Not applied" : generation.errors.length ? "Needs attention" : "Diagram valid"}</div></div>
+            <div className={styles.editorTabs} role="group" aria-label="Choose an editor">
+              <button type="button" aria-pressed={editorMode === "flowchart"} className={editorMode === "flowchart" ? styles.activeEditorTab : ""} onClick={() => changeEditorMode("flowchart")}>Flowchart</button>
+              <button type="button" aria-pressed={editorMode === "pseudocode"} className={editorMode === "pseudocode" ? styles.activeEditorTab : ""} onClick={() => changeEditorMode("pseudocode")}>Pseudocode</button>
+            </div>
+            <label className={styles.examplePicker}><span>Examples</span>
+              <select value="" onChange={(event) => loadPseudocodeExample(event.target.value)}>
+                <option value="" disabled>Choose an example…</option>
+                {PSEUDOCODE_EXAMPLES.map((example) => <option value={example.id} key={example.id}>{example.title}</option>)}
+              </select>
+            </label>
+            {editorMode === "pseudocode" ? <div className={styles.pseudocodeEditor}>
+              <div className={styles.pseudocodeTools} aria-label="Pseudocode editing tools">
+                <button type="button" onClick={() => insertPseudocode('INPUT value PROMPT "Enter a value: "')}>INPUT</button>
+                <button type="button" onClick={() => insertPseudocode("value ← value + 1")}>Step</button>
+                <button type="button" onClick={() => insertPseudocode('OUTPUT "Done"')}>OUTPUT</button>
+                <button type="button" onClick={() => insertPseudocode(`IF value > 10 THEN\n    OUTPUT "Large"\nELSE\n    OUTPUT "Small"\nEND IF`)}>IF / ELSE</button>
+                <button type="button" onClick={undoPseudocode} disabled={!pseudocodeHistory.length} aria-label="Undo pseudocode edit">←</button>
+                <button type="button" onClick={() => { updatePseudocode(tidyPseudocode(pseudocode)); }}>Tidy up</button>
+                <button type="button" onClick={() => updatePseudocode("BEGIN\nEND")}>Clear all</button>
+              </div>
+              <label className={styles.pseudocodeLabel} htmlFor="pseudocode-input">Write pseudocode <span>{pseudocodeDirty ? "Unapplied edits · apply to update the flowchart." : "Use BEGIN, INPUT, assignments, OUTPUT, and one IF / ELSE decision, then END."}</span></label>
+              <textarea id="pseudocode-input" className={styles.pseudocodeInput} spellCheck="false" value={pseudocode} onChange={(event) => updatePseudocode(event.target.value)} aria-describedby="pseudocode-help" />
+              <p id="pseudocode-help" className={styles.pseudocodeHelp}>Assignments accept ←, &lt;-, or =. Put one action on each line. Pseudocode is checked before it updates your flowchart.</p>
+              <div className={styles.pseudocodeFooter}><button type="button" className={styles.applyPseudocode} onClick={applyPseudocode}>Apply to flowchart <span>↗</span></button><span>Your Python/C preview updates after you apply.</span></div>
+            </div> : <>
             <div className={styles.paletteHeader}><span className={styles.sectionEyebrow}>1. ADD A BLOCK</span><span>Choose a shape to add it to your diagram.</span></div>
             <div className={styles.palette} aria-label="Add a flowchart block">{["Start", "Input", "Process", "Decision", "Output", "End"].map((type) => <button key={type} type="button" onClick={() => addNode(type)}><span>＋</span>{type}</button>)}</div>
             <form className={styles.connectionForm} onSubmit={connectBlocks} aria-label="Connect flowchart blocks">
-              <div><span className={styles.sectionEyebrow}>2. CONNECT BLOCKS</span><p>Select a block on the canvas, choose its next step, then add the connection.</p></div>
-              <label>From<select value={connectionSource} onChange={(event) => setConnectionSource(event.target.value)}>{diagram.nodes.map((node) => <option value={node.id} key={node.id}>{node.label || node.type} · {node.type}</option>)}</select></label>
+              <div><span className={styles.sectionEyebrow}>2. CONNECT BLOCKS</span><p>{nodeMap.get(connectionSource) ? <>Selected source: <strong>{nodeMap.get(connectionSource).label || nodeMap.get(connectionSource).type}</strong>. Choose its next block, then add the connection.</> : "Select a source block, choose its next step, then add the connection."}</p></div>
+              <label>From<select value={connectionSource} onChange={(event) => changeConnectionSource(event.target.value)}>{diagram.nodes.map((node) => <option value={node.id} key={node.id}>{node.label || node.type} · {node.type}</option>)}</select></label>
               {nodeMap.get(connectionSource)?.type === "Decision" && <label>Path<select value={connectionBranch} onChange={(event) => setConnectionBranch(event.target.value)}><option value="true">True</option><option value="false">False</option></select></label>}
               <span className={styles.toArrow} aria-hidden="true">→</span>
               <label>To<select value={connectionTarget} onChange={(event) => setConnectionTarget(event.target.value)}>{diagram.nodes.map((node) => <option value={node.id} key={node.id}>{node.label || node.type} · {node.type}</option>)}</select></label>
@@ -435,7 +639,7 @@ export default function WorkspaceClient() {
               </div>
             </div>
             <div ref={canvasViewportRef} className={styles.canvasViewport}>
-              <div ref={canvasRef} style={{ zoom: canvasZoom }} className={`${styles.canvasSurface} ${dragging ? styles.dragging : ""}`} onPointerMove={moveNode} onPointerUp={finishDrag} onPointerCancel={finishDrag} onKeyDown={(event) => { if (event.key === "Delete") { event.preventDefault(); deleteSelectedNode(); } }}>
+              <div ref={canvasRef} style={{ zoom: canvasZoom }} className={`${styles.canvasSurface} ${dragging ? styles.dragging : ""}`} onPointerMove={moveNode} onPointerUp={finishDrag} onPointerCancel={finishDrag} onKeyDown={handleCanvasKeyDown}>
                 <svg className={styles.connections} viewBox={`0 0 ${CANVAS.width} ${CANVAS.height}`} aria-label="Connections between flowchart blocks">
                   <defs><marker id={arrowId} viewBox="0 0 8 8" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto"><path d="M1 1 6 4 1 7" fill="none" stroke="currentColor" strokeWidth="1.5" /></marker></defs>
                   {diagram.edges.map((edge) => {
@@ -445,7 +649,9 @@ export default function WorkspaceClient() {
                     const target = nodeMap.get(edge.to);
                     const fromSize = NODE_SIZE[source.type] ?? { width: 184, height: 78 };
                     const toSize = NODE_SIZE[target.type] ?? { width: 184, height: 78 };
-                    const labelX = (source.position.x + fromSize.width + target.position.x) / 2;
+                    const fromInset = ["Input", "Output"].includes(source.type) ? fromSize.width * 0.07 : 0;
+                    const toInset = ["Input", "Output"].includes(target.type) ? toSize.width * 0.07 : 0;
+                    const labelX = (source.position.x + fromSize.width - fromInset + target.position.x + toInset) / 2;
                     const labelY = (source.position.y + fromSize.height / 2 + target.position.y + toSize.height / 2) / 2;
                     return <g key={edge.id}><path d={path} markerEnd={`url(#${arrowId})`} /><title>{edge.branch ? `${edge.branch} branch` : "Flow"}: ${source.label} to ${target.label}</title>{edge.branch && <text x={labelX} y={labelY - 8} className={styles.branchLabel}>{edge.branch === "true" ? "TRUE" : "FALSE"}</text>}</g>;
                   })}
@@ -463,26 +669,27 @@ export default function WorkspaceClient() {
               </div>
             </div>
 
-            <div className={styles.canvasBottom}><span>Select a block to edit it · Drag to arrange · Use Fit diagram to see all blocks</span><span>Press Delete to remove the selected block</span></div>
+            <div className={styles.canvasBottom}><span>Select a block to edit it · Drag to arrange · Use Fit diagram to see all blocks</span><span>Undo/redo: Ctrl/⌘+Z · Delete removes a selected block</span></div>
 
             <div className={styles.connectionsList}><div className={styles.listHeading}><span className={styles.sectionEyebrow}>CONNECTIONS</span><span>{diagram.edges.length}</span></div>{diagram.edges.length ? <ul>{diagram.edges.map((edge) => <li key={edge.id}><span className={styles.edgeSource}>{nodeMap.get(edge.from)?.label ?? "Missing block"}</span><span className={styles.edgeBranch}>{edge.branch ? edge.branch.toUpperCase() : "NEXT"}</span><span className={styles.edgeTarget}>{nodeMap.get(edge.to)?.label ?? "Missing block"}</span><button type="button" aria-label={`Delete connection from ${nodeMap.get(edge.from)?.label ?? "missing block"} to ${nodeMap.get(edge.to)?.label ?? "missing block"}`} onClick={() => removeEdge(edge.id)}>×</button></li>)}</ul> : <p className={styles.emptyEdges}>No connections yet. Use the controls above to join blocks.</p>}</div>
+            </>}
           </section>
 
           <aside className={styles.sideColumn}>
             <section className={styles.inspectorPanel} aria-labelledby="inspector-title">
               <div className={styles.panelHeader}><div className={styles.panelTitle}><span className={styles.panelIcon}>⌖</span><div><h2 id="inspector-title">Block settings</h2><span>{selectedNode ? selectedNode.type : "Select a block"}</span></div></div>{selectedNode && <button type="button" className={styles.deleteBlock} onClick={deleteSelectedNode}>Delete block</button>}</div>
                 {selectedNode ? <div className={styles.inspectorFields}>
-                {field("Block label", selectedNode.label, (value) => updateNode(selectedNode.id, { label: value }), { maxLength: 80 })}
+                {field("Block label", selectedNode.label, selectedNode.id, "label", { maxLength: 80 })}
                 {selectedNode.type === "Input" && <>
-                  {field("Variable name", selectedNode.variable, (value) => updateNode(selectedNode.id, { variable: value }), { help: "Use a simple Python name, like age or score." })}
-                  {field("Question to ask", selectedNode.prompt, (value) => updateNode(selectedNode.id, { prompt: value }), { multiline: true, rows: 2, maxLength: 240 })}
+                  {field("Variable name", selectedNode.variable, selectedNode.id, "variable", { help: "Use a simple Python name, like age or score." })}
+                  {field("Question to ask", selectedNode.prompt, selectedNode.id, "prompt", { multiline: true, rows: 2, maxLength: 240 })}
                   <label className={styles.field}><span>Answer type</span><select value={selectedNode.inputType} onChange={(event) => updateNode(selectedNode.id, { inputType: event.target.value })}><option value="number">Whole number</option><option value="text">Text</option></select></label>
                 </>}
-                {selectedNode.type === "Process" && field("Assignment", selectedNode.assignment, (value) => updateNode(selectedNode.id, { assignment: value }), { help: "One simple assignment, e.g. total = price * count." })}
-                {selectedNode.type === "Decision" && field("Condition", selectedNode.condition, (value) => updateNode(selectedNode.id, { condition: value }), { help: "Compare values, e.g. age >= 18." })}
+                {selectedNode.type === "Process" && field("Assignment", selectedNode.assignment, selectedNode.id, "assignment", { help: "One simple assignment, e.g. total = price * count." })}
+                {selectedNode.type === "Decision" && field("Condition", selectedNode.condition, selectedNode.id, "condition", { help: "Compare values, e.g. age >= 18." })}
                 {selectedNode.type === "Output" && <>
                   <label className={styles.field}><span>What to print</span><select value={selectedNode.outputMode ?? "message"} onChange={(event) => updateNode(selectedNode.id, { outputMode: event.target.value })}><option value="message">Text message</option><option value="expression">Value or calculation</option></select></label>
-                  {selectedNode.outputMode === "expression" ? field("Value / expression", selectedNode.expression, (value) => updateNode(selectedNode.id, { expression: value }), { help: "Use a value or safe arithmetic, e.g. total or price * count." }) : field("Message to show", selectedNode.message, (value) => updateNode(selectedNode.id, { message: value }), { multiline: true, rows: 3, maxLength: 500 })}
+                  {selectedNode.outputMode === "expression" ? field("Value / expression", selectedNode.expression, selectedNode.id, "expression", { help: "Use a value or safe arithmetic, e.g. total or price * count." }) : field("Message to show", selectedNode.message, selectedNode.id, "message", { multiline: true, rows: 3, maxLength: 500 })}
                 </>}
                 {(selectedNode.type === "Start" || selectedNode.type === "End") && <p className={styles.fixedBlockNote}>Start and End mark where the program begins and finishes.</p>}
                 </div> : <p className={styles.selectHint}>Choose a block in the canvas to edit its content. You can also drag a block to move it.</p>}
@@ -492,7 +699,7 @@ export default function WorkspaceClient() {
               <div className={styles.codePanelHeader}><div className={styles.panelTitle}><span className={styles.codePanelIcon}>{"{ }"}</span><div><h2 id="code-title">Generated code</h2><span>Created from your flowchart</span></div></div><label><span className={styles.pythonTag}>{codeLanguage === "Python" ? "PYTHON" : "C"}</span><select aria-label="Programming language" value={codeLanguage} onChange={(event) => { setCodeLanguage(event.target.value); setCopied(false); }}><option>Python</option><option>C</option></select></label></div>
               <div className={styles.codeActions}><button type="button" onClick={refreshCode}>Generate code ↻</button><div><button type="button" disabled={!generation.code} onClick={copyCode}>{copied ? "Copied ✓" : "Copy"}</button><button type="button" disabled={!generation.code} onClick={() => downloadFile(`maptocode.${codeLanguage === "C" ? "c" : "py"}`, generation.code, codeLanguage === "C" ? "text/x-c;charset=utf-8" : "text/x-python;charset=utf-8")}>Download .{codeLanguage === "C" ? "c" : "py"} ↓</button></div></div>
               {generation.errors.length ? <div className={styles.validationBox} role="status"><div><span>!</span><strong>Fix these items to generate {codeLanguage}</strong></div><ul>{generation.errors.map((error, index) => <li key={`${index}-${error}`}>{error}</li>)}</ul></div> : <div className={styles.validMessage}><span>✓</span> Diagram checks passed. Preview updates as you edit.</div>}
-              {generation.code ? <pre className={styles.generatedCode} aria-label="Generated Python code"><code>{generation.code}</code></pre> : <div className={styles.codeEmpty}>Your Python will appear here once the flowchart is complete.</div>}
+              {generation.code ? <pre className={styles.generatedCode} aria-label={`Generated ${codeLanguage} code`}><code>{generation.code}</code></pre> : <div className={styles.codeEmpty}>Your Python will appear here once the flowchart is complete.</div>}
               <div className={styles.codeScope}>{codeLanguage === "C" ? "C supports whole-number arithmetic (+, -, *) and one comparison per Decision. Text input reads one word. Division, decimals, loops, and multiple decisions are not supported yet." : "Python supports one Start and End, straight-line blocks, and one True/False Decision. Loops and multiple decisions are not supported yet."}</div>
             </section>
 

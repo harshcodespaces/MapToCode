@@ -24,3 +24,47 @@
   .heroBottom span,.heroBottom a{font-size:8px}
   .footer{flex-wrap:wrap;padding:12px 0}
 }
+
+/* Keep the headline and preview from competing for space on tablets. */
+.heroCopy,.heroPreview,.sectionIntro,.steps,.exampleCanvas,.exampleDescription{min-width:0}
+.howSection{grid-template-columns:minmax(0,.75fr) minmax(0,1.25fr)}
+.steps{grid-template-columns:repeat(3,minmax(0,1fr))}
+.exampleCard{grid-template-columns:minmax(0,1.55fr) minmax(0,.65fr)}
+.finalCta>div{min-width:0}
+.finalCta .primaryButton{white-space:nowrap}
+
+@media(max-width:920px){
+  .hero{min-height:0;grid-template-columns:minmax(0,1fr);gap:34px;padding-top:64px;padding-bottom:76px}
+  .heroCopy{max-width:620px}
+  .heroPreview{width:100%;max-width:760px;justify-self:center}
+  .hero h1{font-size:clamp(52px,8vw,70px)}
+  .heroBottom{bottom:0}
+  .howSection{gap:36px}
+  .exampleCard{grid-template-columns:minmax(0,1fr) minmax(220px,.55fr)}
+}
+
+@media(max-width:760px){
+  .hero{display:flex;flex-direction:column;align-items:stretch;padding-top:54px}
+  .hero h1{font-size:clamp(46px,11vw,59px);letter-spacing:-.065em}
+  .previewCode{width:100%;margin:12px 0 0}
+  .previewCaption{position:static;display:block;margin:10px 4px 0;text-align:right}
+  .howSection{display:block}
+  .steps{grid-template-columns:minmax(0,1fr)}
+  .exampleCard{grid-template-columns:minmax(0,1fr)}
+  .exampleCanvas .frame{overflow-x:auto;overscroll-behavior-inline:contain;-webkit-overflow-scrolling:touch}
+  .exampleCanvas .frame .diagram{width:900px;max-width:none}
+  .finalCta .primaryButton{white-space:normal}
+  .footer{flex-wrap:wrap;row-gap:12px;padding:14px 0}
+}
+
+@media(max-width:420px){
+  .header{padding-left:14px;padding-right:14px}
+  .hero{padding-left:16px;padding-right:16px}
+  .hero h1{font-size:clamp(42px,11vw,48px);letter-spacing:-.07em}
+  .heroActions{gap:8px}
+  .primaryButton{gap:12px}
+  .valueBar,.howSection,.exampleSection,.finalCta,.footer{margin-left:16px;margin-right:16px}
+  .valueBar{justify-content:flex-start;column-gap:14px}
+  .exampleHeader>span{font-size:6px;letter-spacing:.2px}
+  .footer>span:last-child{max-width:100%;font-size:6px}
+}

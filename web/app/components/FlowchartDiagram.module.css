@@ -20,3 +20,4 @@
 .yes{left:56.1%;top:33%}.no{left:56.1%;top:59%}
 .compactFrame{border-radius:10px}
 @media(max-width:760px){.frame:not(.compactFrame){overflow-x:auto}.frame:not(.compactFrame) .diagram{width:900px;max-width:none}.compactFrame .diagram{min-width:0}.compactFrame .node{gap:4px;padding:4px}.compactFrame .nodeIcon{width:17px;height:17px;font-size:11px}.compactFrame .nodeKind{letter-spacing:.2px}.compactFrame .branch{padding:2px 3px}}
+@media(max-width:760px){.compactFrame{overflow-x:auto;overflow-y:hidden;overscroll-behavior-inline:contain;scrollbar-width:thin}.compactFrame .diagram{min-width:480px}}
