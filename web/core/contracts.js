@@ -82,7 +82,8 @@ export const astSchema = {
         { type: "object", additionalProperties: false, required: ["id", "kind", "symbolId"], properties: { id, kind: { const: "VariableDeclaration" }, symbolId: id, initializer: { $ref: "#/$defs/expression" } } },
         { type: "object", additionalProperties: false, required: ["id", "kind", "symbolId", "expression"], properties: { id, kind: { const: "Assignment" }, symbolId: id, expression: { $ref: "#/$defs/expression" } } },
         { type: "object", additionalProperties: false, required: ["id", "kind", "symbolId", "prompt"], properties: { id, kind: { const: "Input" }, symbolId: id, prompt: { type: "string" } } },
-        { type: "object", additionalProperties: false, required: ["id", "kind", "value"], properties: { id, kind: { const: "Output" }, value: { $ref: "#/$defs/expression" } } },
+        { type: "object", additionalProperties: false, required: ["id", "kind", "mode", "message"], properties: { id, kind: { const: "Output" }, mode: { const: "message" }, message: { type: "string", maxLength: 500 } } },
+        { type: "object", additionalProperties: false, required: ["id", "kind", "mode", "value"], properties: { id, kind: { const: "Output" }, mode: { const: "value" }, value: { $ref: "#/$defs/expression" } } },
         { type: "object", additionalProperties: false, required: ["id", "kind", "condition", "thenBlock", "elseBlock"], properties: { id, kind: { const: "IfStatement" }, condition: { $ref: "#/$defs/expression" }, thenBlock: { $ref: "#/$defs/block" }, elseBlock: { $ref: "#/$defs/block" } } },
       ],
     },
@@ -109,6 +110,24 @@ export const astSchema = {
   },
 };
 
+const declarationSchema = {
+  type: "object", additionalProperties: false, required: ["id", "name", "type"],
+  properties: { id, name: { type: "string", maxLength: 64 }, type: { enum: ["int", "double", "char"] }, description: { type: "string", maxLength: 500 } },
+};
+
+const specificationStepSchema = {
+  oneOf: [
+    { type: "object", additionalProperties: false, required: ["id", "kind", "payload"], properties: { id, kind: { const: "declaration" }, payload: { type: "object", additionalProperties: false, required: ["symbolId"], properties: { symbolId: id, initializer: { type: "string", maxLength: 256 } } } } },
+    { type: "object", additionalProperties: false, required: ["id", "kind", "payload"], properties: { id, kind: { const: "assignment" }, payload: { type: "object", additionalProperties: false, required: ["targetId", "expression"], properties: { targetId: id, expression: { type: "string", maxLength: 256 } } } } },
+    { type: "object", additionalProperties: false, required: ["id", "kind", "payload"], properties: { id, kind: { const: "input" }, payload: { type: "object", additionalProperties: false, required: ["inputId", "prompt"], properties: { inputId: id, prompt: { type: "string", maxLength: 200 } } } } },
+    { type: "object", additionalProperties: false, required: ["id", "kind", "payload"], properties: { id, kind: { const: "output" }, payload: { oneOf: [
+      { type: "object", additionalProperties: false, required: ["outputId", "mode", "message"], properties: { outputId: id, mode: { const: "message" }, message: { type: "string", maxLength: 500 } } },
+      { type: "object", additionalProperties: false, required: ["outputId", "mode", "expression"], properties: { outputId: id, mode: { const: "expression" }, expression: { type: "string", maxLength: 256 } } },
+    ] } } },
+    { type: "object", additionalProperties: false, required: ["id", "kind", "payload"], properties: { id, kind: { const: "conditional" }, payload: { type: "object", additionalProperties: false, required: ["condition", "whenTrue", "whenFalse"], properties: { condition: { type: "string", maxLength: 256 }, whenTrue: { type: "array", items: { $ref: "#/$defs/step" } }, whenFalse: { type: "array", items: { $ref: "#/$defs/step" } } } } } },
+  ],
+};
+
 export const specificationSchema = {
   $schema: "https://json-schema.org/draft/2020-12/schema",
   $id: "maptocode://specification/1.0.0",
@@ -117,16 +136,28 @@ export const specificationSchema = {
   properties: {
     schemaVersion: { const: CONTRACT_VERSION }, revision,
     inputs: { type: "array", items: { $ref: "#/$defs/declaration" } },
-    outputs: { type: "array", items: { type: "object", additionalProperties: false, required: ["id", "description"], properties: { id, description: { type: "string" } } } },
+    outputs: { type: "array", items: { type: "object", additionalProperties: false, required: ["id", "description"], properties: { id, description: { type: "string", maxLength: 500 } } } },
     variables: { type: "array", items: { $ref: "#/$defs/declaration" } },
-    steps: { type: "array", items: { type: "object", required: ["id", "kind"], properties: { id, kind: { enum: ["declaration", "assignment", "input", "output", "conditional"] }, payload: { type: "object" } }, additionalProperties: false } },
-    constraints: { type: "array", items: { type: "object", additionalProperties: false, required: ["id", "kind", "payload"], properties: { id, kind: { type: "string" }, payload: { type: "object" } } } },
-    examples: { type: "array", items: { type: "object" } },
+    steps: { type: "array", items: { $ref: "#/$defs/step" } },
+    constraints: { type: "array", maxItems: 0 },
+    examples: { type: "array", items: { type: "object", additionalProperties: false, required: ["id", "title", "description"], properties: { id, title: { type: "string", minLength: 1, maxLength: 120 }, description: { type: "string", maxLength: 500 } } } },
   },
   $defs: {
-    declaration: { type: "object", additionalProperties: false, required: ["id", "name", "type"], properties: { id, name: { type: "string", minLength: 1 }, type: { enum: ["int", "double", "char"] }, description: { type: "string" } } },
+    declaration: declarationSchema,
+    step: specificationStepSchema,
   },
 };
+
+const graphNode = (kind, payload) => ({ type: "object", additionalProperties: false, required: ["id", "kind", "payload"], properties: { id, kind: { const: kind }, payload } });
+const emptyPayload = { type: "object", additionalProperties: false, maxProperties: 0 };
+const processPayload = { oneOf: [
+  { type: "object", additionalProperties: false, required: ["operation", "symbolId", "name", "type"], properties: { operation: { const: "declaration" }, symbolId: id, name: { type: "string", maxLength: 64 }, type: { enum: ["int", "double", "char"] }, initializer: { type: "string", maxLength: 256 } } },
+  { type: "object", additionalProperties: false, required: ["operation", "symbolId", "expression"], properties: { operation: { const: "assignment" }, symbolId: id, expression: { type: "string", maxLength: 256 } } },
+] };
+const outputPayload = { oneOf: [
+  { type: "object", additionalProperties: false, required: ["outputId", "mode", "message"], properties: { outputId: id, mode: { const: "message" }, message: { type: "string", maxLength: 500 } } },
+  { type: "object", additionalProperties: false, required: ["outputId", "mode", "expression"], properties: { outputId: id, mode: { const: "expression" }, expression: { type: "string", maxLength: 256 } } },
+] };
 
 export const flowchartSchema = {
   $schema: "https://json-schema.org/draft/2020-12/schema",
@@ -140,7 +171,14 @@ export const flowchartSchema = {
     layout: { type: "object", additionalProperties: false, required: ["positions", "zoom"], properties: { positions: { type: "object", additionalProperties: { type: "object", additionalProperties: false, required: ["x", "y"], properties: { x: { type: "number" }, y: { type: "number" } } } }, zoom: { type: "number", exclusiveMinimum: 0 } } },
   },
   $defs: {
-    node: { type: "object", additionalProperties: false, required: ["id", "kind", "payload"], properties: { id, kind: { enum: ["start", "end", "process", "input", "output", "decision"] }, payload: { type: "object" } } },
+    node: { oneOf: [
+      graphNode("start", emptyPayload),
+      graphNode("end", emptyPayload),
+      graphNode("process", processPayload),
+      graphNode("input", { type: "object", additionalProperties: false, required: ["symbolId", "name", "type", "prompt"], properties: { symbolId: id, name: { type: "string", maxLength: 64 }, type: { enum: ["int", "double", "char"] }, prompt: { type: "string", maxLength: 200 } } }),
+      graphNode("output", outputPayload),
+      graphNode("decision", { type: "object", additionalProperties: false, required: ["condition"], properties: { condition: { type: "string", maxLength: 256 } } }),
+    ] },
     edge: { type: "object", additionalProperties: false, required: ["id", "from", "to"], properties: { id, from: id, to: id, branch: { enum: ["true", "false"] } } },
   },
 };
@@ -151,12 +189,18 @@ export const projectSchema = {
   type: "object", additionalProperties: false,
   required: ["schemaVersion", "projectId", "name", "specification", "flowchart", "decisions", "revisions", "createdAt", "updatedAt"],
   properties: {
-    schemaVersion: { const: CONTRACT_VERSION }, projectId: { type: "string", format: "uuid" }, name: { type: "string", minLength: 1, maxLength: 120 },
+    schemaVersion: { const: CONTRACT_VERSION }, projectId: { type: "string", format: "uuid" }, name: { type: "string", minLength: 1, maxLength: 120, pattern: "\\S" },
     specification: { $ref: "maptocode://specification/1.0.0" }, flowchart: { $ref: "maptocode://flowchart/1.0.0" },
     decisions: { type: "array", items: { type: "object", additionalProperties: false, required: ["findingId", "specificationRevision", "flowchartRevision", "choice"], properties: { findingId: id, specificationRevision: revision, flowchartRevision: revision, choice: { type: "string", minLength: 1 } } } },
     revisions: { type: "object", additionalProperties: false, required: ["semantic", "presentation"], properties: { semantic: revision, presentation: revision } },
     createdAt: { type: "string", format: "date-time" }, updatedAt: { type: "string", format: "date-time" },
-    derivedCache: { type: "object" },
+    generationApproval: { type: "object", additionalProperties: false, required: ["projectId", "semanticRevision", "specificationRevision", "flowchartRevision", "canonicalAstFingerprint", "adapterVersion", "canonicalizerVersion", "validatorVersion", "generatorVersion", "approvedAt"], properties: {
+      projectId: { type: "string", format: "uuid" }, semanticRevision: revision, specificationRevision: revision, flowchartRevision: revision,
+      canonicalAstFingerprint: { type: "string", minLength: 1 }, adapterVersion: { type: "string", minLength: 1 },
+      canonicalizerVersion: { type: "string", minLength: 1 }, validatorVersion: { type: "string", minLength: 1 },
+      generatorVersion: { type: "string", minLength: 1 }, approvedAt: { type: "string", format: "date-time" },
+    } },
+    derivedCache: { type: "object", additionalProperties: false, maxProperties: 0 },
   },
 };
 

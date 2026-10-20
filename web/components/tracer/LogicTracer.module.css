@@ -1,0 +1,1031 @@
+.tracerContainer {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  width: 100%;
+  max-width: 1300px;
+  margin: 0 auto;
+  font-family: inherit;
+}
+
+/* Header & Banner */
+.tracerHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 1rem;
+  background: #ffffff;
+  padding: 1.25rem 1.5rem;
+  border-radius: 12px;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+.tracerHeaderLeft h2 {
+  margin: 0 0 0.25rem 0;
+  font-size: 1.35rem;
+  font-weight: 700;
+  color: #1e293b;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.badge {
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 0.2rem 0.55rem;
+  border-radius: 9999px;
+  background: #e6f4ea;
+  color: #137333;
+  border: 1px solid #ceead6;
+}
+
+.tracerHeaderLeft p {
+  margin: 0;
+  color: #64748b;
+  font-size: 0.9rem;
+}
+
+.tracerHeaderActions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.speedSelector {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.85rem;
+  color: #475569;
+  background: #f8fafc;
+  padding: 0.35rem 0.65rem;
+  border-radius: 8px;
+  border: 1px solid #cbd5e1;
+}
+
+.speedSelector select {
+  font-size: 0.85rem;
+  background: transparent;
+  border: none;
+  font-weight: 600;
+  color: #0f172a;
+  cursor: pointer;
+  outline: none;
+}
+
+.inputConfigBtn {
+  background: #f1f5f9;
+  border: 1px solid #cbd5e1;
+  color: #334155;
+  padding: 0.45rem 0.85rem;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  transition: all 0.15s ease;
+}
+
+.inputConfigBtn:hover {
+  background: #e2e8f0;
+  border-color: #94a3b8;
+}
+
+.viewModeToggle {
+  display: flex;
+  background: #f1f5f9;
+  padding: 3px;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+}
+
+.viewModeBtn {
+  background: transparent;
+  border: none;
+  padding: 0.35rem 0.75rem;
+  border-radius: 6px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #64748b;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.viewModeBtnActive {
+  background: #ffffff;
+  color: #0f172a;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+}
+
+/* Loop & Architecture Notice Banner */
+.loopNoticeBanner {
+  background: #fffbeb;
+  border: 1px solid #fef3c7;
+  border-left: 4px solid #f59e0b;
+  border-radius: 8px;
+  padding: 0.85rem 1.25rem;
+  font-size: 0.875rem;
+  color: #92400e;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+}
+
+.noticeIcon {
+  font-size: 1.15rem;
+}
+
+.loopNoticeBanner strong {
+  color: #78350f;
+}
+
+.loopNoticeBanner p {
+  margin: 0.2rem 0 0 0;
+  font-size: 0.82rem;
+  color: #b45309;
+}
+
+/* Main Tracer Window (Reference Image Aesthetic) */
+.tracerWindow {
+  background: #f8fafc;
+  border: 1px solid #dcdfe4;
+  border-radius: 16px;
+  box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.06), 0 2px 6px -1px rgba(0, 0, 0, 0.03);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Window Titlebar with Mac dots */
+.windowBar {
+  background: #ffffff;
+  padding: 0.75rem 1.25rem;
+  border-bottom: 1px solid #e2e8f0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.macDots {
+  display: flex;
+  gap: 0.45rem;
+}
+
+.dotRed {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #ff5f56;
+}
+
+.dotYellow {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #ffbd2e;
+}
+
+.dotGreen {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #27c93f;
+}
+
+/* Top Progress Flow Bar */
+.windowFlowNav {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  overflow-x: auto;
+  padding: 0.25rem 0.5rem;
+}
+
+.flowItem {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.flowNodeCircle {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 2px solid #cbd5e1;
+  background: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.65rem;
+  font-weight: 700;
+  color: #64748b;
+  position: relative;
+  transition: all 0.2s ease;
+}
+
+.flowNodeActive {
+  border-color: #10b981;
+  background: #ecfdf5;
+  color: #059669;
+  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.2);
+}
+
+.flowNodePointer {
+  position: absolute;
+  top: -8px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 0;
+  height: 0;
+  border-left: 4px solid transparent;
+  border-right: 4px solid transparent;
+  border-top: 5px solid #10b981;
+}
+
+.flowNodeCompleted {
+  border-color: #3b82f6;
+  background: #eff6ff;
+  color: #2563eb;
+}
+
+.flowArrow {
+  color: #94a3b8;
+  font-size: 0.8rem;
+}
+
+/* Window Main Grid (Left Code, Right Variables & Memory) */
+.windowMainGrid {
+  display: grid;
+  grid-template-columns: 1.15fr 1fr;
+  min-height: 400px;
+  background: #ffffff;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+@media (max-width: 900px) {
+  .windowMainGrid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.windowMainGridSplit {
+  display: grid;
+  grid-template-columns: 1fr 1.15fr 0.95fr;
+  min-height: 420px;
+  background: #ffffff;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+@media (max-width: 1100px) {
+  .windowMainGridSplit {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Code / Algorithm Panel */
+.codePanel {
+  padding: 1.25rem;
+  border-right: 1px solid #e2e8f0;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.codePanelHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #475569;
+  border-bottom: 1px solid #f1f5f9;
+  padding-bottom: 0.5rem;
+}
+
+.codeView {
+  font-family: "JetBrains Mono", "Fira Code", monospace;
+  font-size: 0.88rem;
+  line-height: 1.6;
+  background: #ffffff;
+  border-radius: 8px;
+  overflow-x: auto;
+  border: 1px solid #f1f5f9;
+  padding: 0.5rem 0;
+}
+
+.codeLine {
+  display: flex;
+  align-items: center;
+  padding: 0.15rem 0.75rem;
+  transition: background 0.15s ease;
+}
+
+.codeLineNumber {
+  width: 32px;
+  color: #94a3b8;
+  user-select: none;
+  font-size: 0.82rem;
+  text-align: right;
+  padding-right: 12px;
+}
+
+.activeLinePointer {
+  color: #10b981;
+  font-weight: 700;
+  padding-right: 6px;
+  animation: pulsePointer 1.2s infinite ease-in-out;
+}
+
+@keyframes pulsePointer {
+  0%, 100% { opacity: 1; transform: translateX(0); }
+  50% { opacity: 0.6; transform: translateX(2px); }
+}
+
+.codeLineContent {
+  flex: 1;
+  white-space: pre;
+  color: #334155;
+}
+
+.codeLineActive {
+  background: #e6f4ea !important;
+  color: #0f172a;
+  font-weight: 600;
+}
+
+.codeLineActive .codeLineNumber {
+  color: #059669;
+  font-weight: 700;
+}
+
+/* Beginner Explanation Box */
+.explanationBox {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 0.9rem 1.1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.explanationTitle {
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: 700;
+  color: #059669;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.explanationText {
+  font-size: 0.92rem;
+  font-weight: 600;
+  color: #1e293b;
+  margin: 0;
+  line-height: 1.45;
+}
+
+.explanationDetail {
+  font-size: 0.84rem;
+  color: #475569;
+  margin: 0;
+  line-height: 1.4;
+}
+
+.explanationWhatNext {
+  font-size: 0.8rem;
+  color: #64748b;
+  font-style: italic;
+  margin-top: 0.2rem;
+}
+
+/* Right Panels: Variables Watch & Visual Memory Cards */
+.rightPanels {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  padding: 1.25rem;
+  gap: 1.25rem;
+  background: #fafbfc;
+}
+
+@media (max-width: 600px) {
+  .rightPanels {
+    grid-template-columns: 1fr;
+  }
+}
+
+.watchSection, .memorySection {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.panelTitle {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #475569;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin: 0;
+}
+
+/* Variable Watch Grid (Ref aesthetic) */
+.watchTable {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  background: #ffffff;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+  overflow: hidden;
+}
+
+.watchTable th {
+  background: #f1f5f9;
+  color: #475569;
+  font-weight: 600;
+  font-size: 0.75rem;
+  padding: 0.5rem 0.75rem;
+  text-align: left;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.watchTable td {
+  padding: 0.6rem 0.75rem;
+  font-size: 0.88rem;
+  border-bottom: 1px solid #f1f5f9;
+  color: #1e293b;
+}
+
+.watchTable tr:last-child td {
+  border-bottom: none;
+}
+
+.varName {
+  font-family: monospace;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.varType {
+  font-size: 0.75rem;
+  color: #64748b;
+  font-family: monospace;
+}
+
+.varValue {
+  font-family: monospace;
+  font-weight: 700;
+  color: #2563eb;
+}
+
+.varChangedRow {
+  background: #ecfdf5 !important;
+}
+
+.varChangedRow .varValue {
+  color: #059669;
+}
+
+.varPrevValue {
+  font-size: 0.78rem;
+  color: #94a3b8;
+  margin-left: 0.4rem;
+  text-decoration: line-through;
+}
+
+.varUninit {
+  color: #94a3b8;
+  font-style: italic;
+  font-size: 0.8rem;
+}
+
+/* Visual Memory Cards (Right Subpanel in Ref) */
+.memoryCardList {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+.memoryCard {
+  background: #ffffff;
+  border: 1px solid #dbeafe;
+  border-radius: 10px;
+  padding: 0.75rem 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  box-shadow: 0 1px 3px rgba(37, 99, 235, 0.05);
+  transition: all 0.2s ease;
+}
+
+.memoryCardActive {
+  border-color: #10b981;
+  background: #f0fdf4;
+  box-shadow: 0 2px 8px rgba(16, 185, 129, 0.15);
+}
+
+.memVarBadge {
+  font-family: monospace;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #1e293b;
+  background: #f1f5f9;
+  padding: 0.25rem 0.6rem;
+  border-radius: 6px;
+  border: 1px solid #e2e8f0;
+}
+
+.memArrow {
+  color: #3b82f6;
+  font-size: 1.1rem;
+  font-weight: 700;
+}
+
+.memoryCardActive .memArrow {
+  color: #10b981;
+}
+
+.memValueBox {
+  font-family: monospace;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: #1d4ed8;
+  background: #eff6ff;
+  border: 1.5px solid #bfdbfe;
+  padding: 0.35rem 0.85rem;
+  border-radius: 8px;
+  min-width: 48px;
+  text-align: center;
+}
+
+.memoryCardActive .memValueBox {
+  color: #047857;
+  background: #ecfdf5;
+  border-color: #a7f3d0;
+}
+
+/* Output Console Section */
+.outputConsole {
+  background: #1e293b;
+  color: #f8fafc;
+  padding: 0.85rem 1.25rem;
+  border-radius: 8px;
+  font-family: monospace;
+  font-size: 0.85rem;
+}
+
+.outputConsoleHeader {
+  color: #94a3b8;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  margin-bottom: 0.4rem;
+  display: flex;
+  justify-content: space-between;
+}
+
+.consoleText {
+  white-space: pre-wrap;
+  margin: 0;
+  color: #38bdf8;
+  min-height: 20px;
+}
+
+/* Bottom Execution Timeline (Snapshot Carousel in Ref Image) */
+.timelineSection {
+  background: #f1f5f9;
+  padding: 1.25rem;
+  border-bottom: 1px solid #e2e8f0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.timelineHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #475569;
+}
+
+.timelineCardsScroll {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  overflow-x: auto;
+  padding: 0.5rem 0.25rem 0.75rem 0.25rem;
+  scroll-behavior: smooth;
+}
+
+.timelineCardWrapper {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-shrink: 0;
+}
+
+.snapshotCard {
+  width: 170px;
+  background: #ffffff;
+  border: 1.5px solid #cbd5e1;
+  border-radius: 10px;
+  padding: 0.6rem 0.75rem;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  transition: all 0.15s ease;
+  user-select: none;
+}
+
+.snapshotCard:hover {
+  border-color: #94a3b8;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.05);
+}
+
+.snapshotCardActive {
+  border-color: #10b981 !important;
+  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.25), 0 4px 12px rgba(16, 185, 129, 0.12) !important;
+  background: #f0fdf4 !important;
+}
+
+.snapshotCardHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #64748b;
+}
+
+.snapshotCardActive .snapshotCardHeader {
+  color: #059669;
+}
+
+.snapshotMiniCode {
+  font-family: monospace;
+  font-size: 0.68rem;
+  color: #475569;
+  background: #f8fafc;
+  padding: 0.3rem 0.4rem;
+  border-radius: 4px;
+  border: 1px solid #e2e8f0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.snapshotMiniVars {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.miniVarTag {
+  font-family: monospace;
+  font-size: 0.68rem;
+  background: #eff6ff;
+  color: #1e40af;
+  padding: 0.1rem 0.35rem;
+  border-radius: 4px;
+  border: 1px solid #dbeafe;
+}
+
+.snapshotCardActive .miniVarTag {
+  background: #ecfdf5;
+  color: #065f46;
+  border-color: #a7f3d0;
+}
+
+.timelineStepArrow {
+  color: #059669;
+  font-size: 1.1rem;
+  font-weight: 700;
+}
+
+/* Bottom Execution Controls Bar */
+.controlsBar {
+  background: #ffffff;
+  padding: 1.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1.25rem;
+}
+
+.controlBtn {
+  background: #f1f5f9;
+  border: 1px solid #cbd5e1;
+  color: #334155;
+  border-radius: 8px;
+  padding: 0.6rem 0.9rem;
+  font-size: 1rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+  min-width: 44px;
+}
+
+.controlBtn:hover:not(:disabled) {
+  background: #e2e8f0;
+  border-color: #94a3b8;
+  color: #0f172a;
+}
+
+.controlBtn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* Arrow Navigation Buttons */
+.nextArrowBtn {
+  background: #10b981;
+  border: none;
+  color: #ffffff;
+  border-radius: 10px;
+  padding: 0.65rem 1.4rem;
+  font-size: 0.95rem;
+  font-weight: 700;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.28);
+  transition: all 0.15s ease;
+}
+
+.nextArrowBtn:hover:not(:disabled) {
+  background: #059669;
+  box-shadow: 0 6px 16px rgba(16, 185, 129, 0.38);
+  transform: translateY(-1px);
+}
+
+.nextArrowBtn:disabled {
+  background: #cbd5e1;
+  color: #94a3b8;
+  cursor: not-allowed;
+  box-shadow: none;
+  transform: none;
+}
+
+.prevArrowBtn {
+  background: #f1f5f9;
+  border: 1.5px solid #cbd5e1;
+  color: #1e293b;
+  border-radius: 10px;
+  padding: 0.65rem 1.2rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  transition: all 0.15s ease;
+}
+
+.prevArrowBtn:hover:not(:disabled) {
+  background: #e2e8f0;
+  border-color: #94a3b8;
+  color: #0f172a;
+}
+
+.prevArrowBtn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.stepIndicatorPill {
+  font-family: monospace, ui-monospace, sans-serif;
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: #334155;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  padding: 0.45rem 1rem;
+  border-radius: 20px;
+  user-select: none;
+}
+
+.resetBtn {
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  color: #64748b;
+  border-radius: 8px;
+  padding: 0.6rem 0.9rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  transition: all 0.15s ease;
+}
+
+.resetBtn:hover:not(:disabled) {
+  background: #f1f5f9;
+  color: #0f172a;
+}
+
+/* Input Modal / Drawer */
+.inputModalOverlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.5);
+  backdrop-filter: blur(2px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 1rem;
+}
+
+.inputModalCard {
+  background: #ffffff;
+  border-radius: 16px;
+  width: 100%;
+  max-width: 480px;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+  border: 1px solid #e2e8f0;
+  overflow: hidden;
+}
+
+.inputModalHeader {
+  padding: 1.25rem 1.5rem;
+  border-bottom: 1px solid #e2e8f0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.inputModalHeader h3 {
+  margin: 0;
+  font-size: 1.15rem;
+  color: #0f172a;
+}
+
+.inputModalBody {
+  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.inputFieldGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.inputFieldLabel {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #334155;
+  display: flex;
+  justify-content: space-between;
+}
+
+.inputFieldInput {
+  padding: 0.65rem 0.85rem;
+  border: 1.5px solid #cbd5e1;
+  border-radius: 8px;
+  font-size: 0.95rem;
+  color: #0f172a;
+  outline: none;
+  transition: border-color 0.15s ease;
+}
+
+.inputFieldInput:focus {
+  border-color: #10b981;
+  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.15);
+}
+
+.inputModalFooter {
+  padding: 1rem 1.5rem;
+  background: #f8fafc;
+  border-top: 1px solid #e2e8f0;
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.75rem;
+}
+
+.closeModalBtn {
+  background: transparent;
+  border: none;
+  font-size: 1.25rem;
+  color: #64748b;
+  cursor: pointer;
+}
+
+.submitInputBtn {
+  background: #10b981;
+  border: none;
+  color: #ffffff;
+  padding: 0.6rem 1.25rem;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+.submitInputBtn:hover {
+  background: #059669;
+}
+
+/* Quick Example Presets */
+.presetButtons {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.presetBtn {
+  background: #f1f5f9;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  padding: 0.3rem 0.65rem;
+  font-size: 0.8rem;
+  color: #334155;
+  cursor: pointer;
+  font-weight: 500;
+}
+
+.presetBtn:hover {
+  background: #e2e8f0;
+  border-color: #94a3b8;
+}
+
+/* Technical Details Drawer */
+.techDetailsSection {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 0.85rem 1.25rem;
+}
+
+.techDetailsToggle {
+  background: transparent;
+  border: none;
+  color: #64748b;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0;
+}
+
+.techDetailsContent {
+  margin-top: 0.75rem;
+  font-family: monospace;
+  font-size: 0.8rem;
+  color: #475569;
+  background: #f8fafc;
+  padding: 0.75rem;
+  border-radius: 6px;
+}
+
+.tracerEmptyStateCard {
+  background: #ffffff;
+  border: 2px dashed #cbd5e1;
+  border-radius: 12px;
+  padding: 48px 24px;
+  text-align: center;
+  max-width: 600px;
+  margin: 2rem auto;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+.tracerEmptyIcon {
+  font-size: 2.5rem;
+  margin-bottom: 1rem;
+}
+
+.tracerEmptyStateCard h3 {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #1e293b;
+  margin: 0 0 0.5rem 0;
+}
+
+.tracerEmptyStateCard p {
+  color: #64748b;
+  font-size: 0.95rem;
+  line-height: 1.6;
+  margin: 0;
+}
+

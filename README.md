@@ -1,67 +1,115 @@
 # MapToCode
 
-MapToCode helps beginners turn flowcharts into readable code. The project includes a Next.js website with a browser-based flowchart workspace, plus a standalone HTML version that runs directly in a browser.
+MapToCode is a beginner-friendly full-stack developer tool that turns flowcharts and structured logic into readable Python and C99 code.
 
-## Choose a version
+---
 
-- **Website and workspace:** follow the setup below to run the Next.js app.
-- **Standalone demo:** open [`MapToCode.html`](./MapToCode.html) in a modern browser. It needs no install or server.
+## Architecture & Tech Stack
 
-## Run the website locally
+```text
+MapToCode/
+├── backend/                       # Python FastAPI Backend
+│   ├── app/
+│   │   ├── api/v1/                # REST endpoints (health, projects, validate, reconcile, generate, execute)
+│   │   ├── core/                  # Configuration & diagnostic definitions
+│   │   ├── domain/                # Canonical AST, validation, C/Python generators, reconciliation
+│   │   ├── schemas/               # Pydantic data contracts, requests & responses
+│   │   ├── services/              # Project persistence & isolated sandboxed execution
+│   │   └── main.py                # FastAPI entry point & CORS configuration
+│   ├── tests/                     # Pytest automated test suite (28 tests)
+│   ├── pyproject.toml             # Python packaging & tool configuration
+│   └── requirements.txt           # Python backend dependencies
+│
+├── web/                           # Next.js React & TypeScript Frontend
+│   ├── app/                       # Next.js App Router (pages: /, /workspace, /api/execute)
+│   ├── components/                # Modular React UI components
+│   │   ├── canvas/                # Visual flowchart canvas & SVG diagrams
+│   │   ├── common/                # Shared UI elements (BrandMark, SampleCodePreview)
+│   │   ├── tracer/                # Interactive step-by-step logic tracer
+│   │   └── workspace/             # Workspace client, algorithm editor, stepper, modals
+│   ├── api/                       # Typed HTTP client communicating with FastAPI
+│   ├── types/                     # TypeScript types (AST, contracts, API responses)
+│   ├── core/                      # Client-side helpers (local storage drafts, examples)
+│   ├── tests/                     # Client automated tests (61 tests)
+│   ├── package.json
+│   └── tsconfig.json
+│
+└── docs/                          # Architecture specifications & deployment documentation
+```
 
-You need Node.js and npm installed. In a terminal, run:
+---
+
+## Running the Application Locally
+
+### 1. Backend (Python FastAPI)
+
+In your first terminal:
+
+```bash
+cd backend
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
+```
+
+- **Health check**: [http://127.0.0.1:8000/api/v1/health](http://127.0.0.1:8000/api/v1/health)
+- **Interactive API Docs (Swagger UI)**: [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs)
+- **Run tests**:
+  ```bash
+  pytest tests
+  ```
+
+---
+
+### 2. Frontend (Next.js & TypeScript)
+
+In your second terminal:
 
 ```bash
 cd web
-npm ci
+npm install
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000). The homepage introduces the project; choose **Open Workspace** to build a diagram.
+- **Homepage**: [http://localhost:3000](http://localhost:3000)
+- **Interactive Workspace**: [http://localhost:3000/workspace](http://localhost:3000/workspace)
 
-To check the website before sharing changes:
-
-```bash
-npm test
-npm run lint
-npm run build
-```
-
-For GitHub Actions, Vercel previews, production branch protection, and deployment troubleshooting, see [`docs/DEPLOYMENT.md`](./docs/DEPLOYMENT.md).
-
-## What it supports
-
-- Build and edit a flowchart in the browser workspace.
-- Preview and download generated Python or C source for the documented supported subset.
-- Save diagrams in browser local storage and export or import them as JSON.
-- Use the single-file `MapToCode.html` demo without Node.js.
-
-Generated source is displayed or downloaded; the app does not execute it. Recognition of hand-drawn flowcharts is not implemented.
-
-See [`web/README.md`](./web/README.md) for supported language details and limitations. Product notes are in [`docs/`](./docs/).
-
-## Project layout
-
-```text
-MapToCode.html       Standalone browser version
-docs/                Product brief and project notes
-web/                 Next.js website and workspace
-  app/               Pages and UI
-  lib/               Flowchart validation and code generation
-  tests/             Generator tests
-```
-
-## Publish on GitHub
-
-Create an empty repository on GitHub, then from this project folder run the commands GitHub shows for an existing local repository. If Git is not initialized yet, use:
+#### Frontend Quality Checks
 
 ```bash
-git init
-git add README.md .gitignore AGENTS.md MapToCode.html docs web
-git commit -m "Prepare MapToCode for GitHub"
-git branch -M main
-git remote add origin https://github.com/YOUR-USERNAME/YOUR-REPOSITORY.git
-git push -u origin main
+cd web
+npm run type-check   # TypeScript check (0 errors)
+npm run lint         # ESLint verification (0 errors)
+npm test             # Automated unit tests (61 tests)
+npm run build        # Production Next.js build
 ```
 
-Replace the example remote with your repository address. Do not add `node_modules`, `.next`, or local environment files; the root `.gitignore` excludes them.
+---
+
+## Editing Code in VS Code or Any Editor
+
+The project is structured for easy navigation and editing:
+
+- **Edit UI & Frontend Logic**:
+  - Main workspace layout and interactions: [`web/components/workspace/WorkspaceClient.tsx`](./web/components/workspace/WorkspaceClient.tsx)
+  - Flowchart visual canvas: [`web/components/canvas/FlowCanvas.tsx`](./web/components/canvas/FlowCanvas.tsx)
+  - Algorithm step-by-step editor: [`web/components/workspace/AlgorithmEditor.tsx`](./web/components/workspace/AlgorithmEditor.tsx)
+  - Frontend API client: [`web/api/client.ts`](./web/api/client.ts)
+  - TypeScript types: [`web/types/contracts.ts`](./web/types/contracts.ts)
+
+- **Edit Backend Domain Logic & Generators**:
+  - Python code generator: [`backend/app/domain/python_generator.py`](./backend/app/domain/python_generator.py)
+  - C code generator: [`backend/app/domain/c_generator.py`](./backend/app/domain/c_generator.py)
+  - Dual-authoring reconciliation: [`backend/app/domain/reconciliation.py`](./backend/app/domain/reconciliation.py)
+  - API routes: [`backend/app/api/v1/routes/`](./backend/app/api/v1/routes/)
+  - Sandboxed code execution: [`backend/app/services/execution_service.py`](./backend/app/services/execution_service.py)
+
+---
+
+## Core Architecture Principles
+
+1. **Dual Independent Authoring**: Users can define logic via a structured specification (Option A) or visually via a flowchart (Option B).
+2. **Deterministic Reconciliation**: Both representations are normalized to a versioned AST and compared for equivalence (`equivalent`, `conflict`, `unknown`, `invalid`).
+3. **Strict Generation Gate**: Code generation is blocked until both representations are verified as equivalent and actively approved.
+4. **Sandboxed Execution**: Code execution is isolated with strict timeouts, size limits, and rate limiting.
