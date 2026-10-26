@@ -77,7 +77,7 @@ function checkFlowchartInvariants(flowchart) {
   const starts = flowchart.nodes.filter((node) => node.kind === "start");
   const ends = flowchart.nodes.filter((node) => node.kind === "end");
   if (starts.length !== 1) diagnostics.push(invariant("GRAPH_ENTRYPOINT_INVALID", "structure", "A flowchart must contain exactly one Start block."));
-  if (ends.length !== 1) diagnostics.push(invariant("GRAPH_ENTRYPOINT_INVALID", "structure", "A flowchart must contain exactly one End block."));
+  if (ends.length < 1) diagnostics.push(invariant("GRAPH_ENTRYPOINT_INVALID", "structure", "A flowchart must contain at least one End block."));
 
   for (const node of flowchart.nodes) {
     const edges = outgoing.get(node.id) ?? [];

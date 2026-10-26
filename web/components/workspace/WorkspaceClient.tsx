@@ -212,7 +212,9 @@ export default function M1WorkspaceClient(): React.JSX.Element {
   const [codeResult, setCodeResult] = useState<GenerateCodeResponse | null>(null);
   const [targetLanguage, setTargetLanguage] = useState<"python" | "c">("python");
   const [previewTab, setPreviewTab] = useState<"text" | "diagram">("text");
-  const [zoom, setZoom] = useState<number>(1);
+  const [zoom, setZoom] = useState<number>(() =>
+    typeof window !== "undefined" && window.innerWidth <= 768 ? 0.75 : 1
+  );
   const [notice, setNotice] = useState<string>("");
   const [error, setError] = useState<string>("");
   const [isEditingTitle, setIsEditingTitle] = useState<boolean>(false);
@@ -223,6 +225,20 @@ export default function M1WorkspaceClient(): React.JSX.Element {
   const [newProjectWorkflow, setNewProjectWorkflow] = useState<"logic" | "flowchart">("logic");
   const [sampleWorkflowTarget, setSampleWorkflowTarget] = useState<any>(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState<boolean>(false);
+
+  useEffect(() => {
+    if ((selectedNode || selectedEdge) && typeof window !== "undefined" && window.innerWidth <= 768) {
+      // Small timeout to allow element to render before scrolling
+      const timer = setTimeout(() => {
+        const el = document.getElementById("node-inspector") || document.getElementById("edge-inspector");
+        if (el) {
+          el.scrollIntoView({ behavior: "smooth", block: "nearest" });
+        }
+      }, 50);
+      return () => clearTimeout(timer);
+    }
+  }, [selectedNode, selectedEdge]);
   const [copiedPseudocode, setCopiedPseudocode] = useState<boolean>(false);
   const [showDraftPreview, setShowDraftPreview] = useState<boolean>(false);
   const [draftLanguage, setDraftLanguage] = useState<"python" | "c">("python");
@@ -794,10 +810,6 @@ export default function M1WorkspaceClient(): React.JSX.Element {
       setError("A flowchart can only have one Start block.");
       return;
     }
-    if (kind === "end" && graph.nodes.some((n) => n.kind === "end")) {
-      setError("A flowchart can only have one End block.");
-      return;
-    }
     const id = uid();
     const inputVar = getNextVariableName("input", graph.nodes);
     const processVar = getNextVariableName("process", graph.nodes);
@@ -814,9 +826,11 @@ export default function M1WorkspaceClient(): React.JSX.Element {
     Object.values(graph.layout.positions || {}).forEach((p) => {
       if (p.y > maxY) maxY = p.y;
     });
+    const startNode = graph.nodes.find((n) => n.kind === "start");
+    const baseX = startNode && graph.layout.positions[startNode.id] ? graph.layout.positions[startNode.id].x : 380;
     const positions = {
       ...graph.layout.positions,
-      [id]: { x: 380, y: Math.max(maxY + 100, 40 + graph.nodes.length * 110) },
+      [id]: { x: baseX, y: Math.max(maxY + 100, 40 + graph.nodes.length * 110) },
     };
 
     applyGraph((current: FlowchartGraph) => ({
@@ -841,9 +855,16 @@ export default function M1WorkspaceClient(): React.JSX.Element {
 
   const deleteNode = () => {
     if (!selected) return;
-    if (selected.kind === "start" || selected.kind === "end") {
-      setNotice("Start and End blocks are required terminators and cannot be deleted.");
+    if (selected.kind === "start") {
+      setNotice("Start block is a required entrypoint and cannot be deleted.");
       return;
+    }
+    if (selected.kind === "end") {
+      const endCount = graph.nodes.filter((n) => n.kind === "end").length;
+      if (endCount <= 1) {
+        setNotice("Flowchart must have at least one End block.");
+        return;
+      }
     }
     applyGraph((current: FlowchartGraph) => {
       const { [selectedNode]: _removed, ...remainingPositions } = current.layout.positions;
@@ -864,8 +885,10 @@ export default function M1WorkspaceClient(): React.JSX.Element {
         if (["INPUT", "TEXTAREA", "SELECT"].includes((e.target as HTMLElement)?.tagName)) return;
         if (selectedNode) {
           const targetNode = project?.flowchart?.nodes?.find((n) => n.id === selectedNode);
-          if (targetNode?.kind === "start" || targetNode?.kind === "end") {
-            return;
+          if (targetNode?.kind === "start") return;
+          if (targetNode?.kind === "end") {
+            const endCount = project?.flowchart?.nodes?.filter((n) => n.kind === "end").length || 0;
+            if (endCount <= 1) return;
           }
           e.preventDefault();
           applyGraph((current: FlowchartGraph) => {
@@ -988,8 +1011,8 @@ export default function M1WorkspaceClient(): React.JSX.Element {
     if (!graph) return;
     const target = graph.nodes.find((n) => n.id === nodeId);
     if (!target) return;
-    if (target.kind === "start" || target.kind === "end") {
-      setNotice("Start and End blocks cannot be duplicated.");
+    if (target.kind === "start") {
+      setNotice("Start block cannot be duplicated.");
       return;
     }
     const newId = uid();
@@ -1116,13 +1139,18 @@ export default function M1WorkspaceClient(): React.JSX.Element {
       }
     });
 
-    const endNode = nodes.find((n) => n.kind === "end");
-    if (endNode) {
-      // End block is placed centered at 380 and strictly below all other arranged blocks
-      newPositions[endNode.id] = { x: 380, y: maxNonEndY + 110 };
+    const endNodes = nodes.filter((n) => n.kind === "end");
+    if (endNodes.length === 1) {
+      newPositions[endNodes[0].id] = { x: 380, y: maxNonEndY + 110 };
+    } else {
+      endNodes.forEach((endN) => {
+        if (!newPositions[endN.id]) {
+          newPositions[endN.id] = { x: 380, y: maxNonEndY + 110 };
+        }
+      });
     }
 
-    let disconnectedY = (endNode ? newPositions[endNode.id]?.y : maxNonEndY) || maxNonEndY;
+    let disconnectedY = maxNonEndY + 110;
     nodes.forEach((n) => {
       if (!newPositions[n.id]) {
         disconnectedY += 100;
@@ -1231,9 +1259,10 @@ export default function M1WorkspaceClient(): React.JSX.Element {
     });
     const contentW = Math.max(100, maxX - minX);
     const contentH = Math.max(100, maxY - minY);
-    const availW = isFullscreen ? (typeof window !== "undefined" ? window.innerWidth - 220 : 900) : 800;
-    const availH = isFullscreen ? (typeof window !== "undefined" ? window.innerHeight - 150 : 600) : 520;
-    const scale = Math.min(1.2, Math.max(0.6, Math.min(availW / contentW, availH / contentH)));
+    const containerW = flowchartEditorRef.current?.clientWidth || (typeof window !== "undefined" ? window.innerWidth - 32 : 800);
+    const availW = Math.max(260, containerW - (isFullscreen ? 20 : 36));
+    const availH = Math.max(260, isFullscreen ? (typeof window !== "undefined" ? window.innerHeight - 120 : 600) : 480);
+    const scale = Math.min(1.2, Math.max(0.45, Math.min(availW / contentW, availH / contentH)));
     setZoom(Math.round(scale * 10) / 10);
     setNotice("Flowchart centered and fitted to view.");
   };
@@ -1406,11 +1435,26 @@ export default function M1WorkspaceClient(): React.JSX.Element {
 
   return (
     <div className={styles.workspaceLayout}>
+      {/* Mobile Drawer Backdrop */}
+      {mobileMenuOpen && (
+        <div
+          className={styles.sidebarBackdrop}
+          onClick={() => setMobileMenuOpen(false)}
+          aria-hidden="true"
+        />
+      )}
+
       {/* 1. Left Dark Green Sidebar */}
-      <aside className={`${styles.sidebar} ${sidebarCollapsed ? styles.sidebarCollapsed : ""}`}>
+      <aside className={`${styles.sidebar} ${sidebarCollapsed ? styles.sidebarCollapsed : ""} ${mobileMenuOpen ? styles.sidebarMobileOpen : ""}`}>
         {/* Brand Header with Smart Collapse Arrow Button */}
         <div className={styles.sidebarBrand}>
-          <Link href="/" className={styles.sidebarBrandGroup} title="MapToCode Home" aria-label="Go to MapToCode Home">
+          <Link
+            href="/"
+            className={styles.sidebarBrandGroup}
+            title="MapToCode Home"
+            aria-label="Go to MapToCode Home"
+            onClick={() => setMobileMenuOpen(false)}
+          >
             <svg viewBox="0 0 32 32" className={styles.sidebarLogoIcon} aria-hidden="true">
               <circle cx="16" cy="6" r="4.5" fill="#D48332" />
               <path d="M16 10.5V17M16 17H8V21.5M16 17H24V21.5" stroke="#D48332" strokeWidth="2" strokeLinecap="round" />
@@ -1422,9 +1466,15 @@ export default function M1WorkspaceClient(): React.JSX.Element {
           <button
             type="button"
             className={styles.sidebarCollapseBtn}
-            onClick={toggleSidebar}
-            title="Hide sidebar (Ctrl+B)"
-            aria-label="Hide sidebar"
+            onClick={() => {
+              if (mobileMenuOpen) {
+                setMobileMenuOpen(false);
+              } else {
+                toggleSidebar();
+              }
+            }}
+            title={mobileMenuOpen ? "Close menu" : "Hide sidebar (Ctrl+B)"}
+            aria-label={mobileMenuOpen ? "Close menu" : "Hide sidebar"}
           >
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
               <polyline points="15 18 9 12 15 6" />
@@ -1438,6 +1488,7 @@ export default function M1WorkspaceClient(): React.JSX.Element {
             href="/"
             className={styles.sidebarNavItem}
             title="Go to Homepage"
+            onClick={() => setMobileMenuOpen(false)}
           >
             <span className={styles.sidebarNavIcon}>🏠</span>
             <span>Home</span>
@@ -1449,6 +1500,7 @@ export default function M1WorkspaceClient(): React.JSX.Element {
             onClick={() => {
               setNewProjectName("");
               setActiveModal("newProject");
+              setMobileMenuOpen(false);
             }}
             title="Create a new flowchart project"
           >
@@ -1459,7 +1511,10 @@ export default function M1WorkspaceClient(): React.JSX.Element {
           <button
             type="button"
             className={`${styles.sidebarNavItem} ${activeModal === "projects" ? styles.sidebarNavActive : ""}`}
-            onClick={() => setActiveModal("projects")}
+            onClick={() => {
+              setActiveModal("projects");
+              setMobileMenuOpen(false);
+            }}
           >
             <span className={styles.sidebarNavIcon}>📁</span>
             <span>My Projects</span>
@@ -1469,7 +1524,10 @@ export default function M1WorkspaceClient(): React.JSX.Element {
           <button
             type="button"
             className={`${styles.sidebarNavItem} ${activeModal === "samples" ? styles.sidebarNavActive : ""}`}
-            onClick={() => setActiveModal("samples")}
+            onClick={() => {
+              setActiveModal("samples");
+              setMobileMenuOpen(false);
+            }}
           >
             <span className={styles.sidebarNavIcon}>📋</span>
             <span>Examples</span>
@@ -1478,7 +1536,10 @@ export default function M1WorkspaceClient(): React.JSX.Element {
           <button
             type="button"
             className={`${styles.sidebarNavItem} ${activeModal === "chooseWorkflow" ? styles.sidebarNavActive : ""}`}
-            onClick={() => setActiveModal("chooseWorkflow")}
+            onClick={() => {
+              setActiveModal("chooseWorkflow");
+              setMobileMenuOpen(false);
+            }}
           >
             <span className={styles.sidebarNavIcon}>🔀</span>
             <span>Switch Workflow</span>
@@ -1487,7 +1548,10 @@ export default function M1WorkspaceClient(): React.JSX.Element {
           <button
             type="button"
             className={`${styles.sidebarNavItem} ${activeModal === "traceLogic" ? styles.sidebarNavActive : ""}`}
-            onClick={() => setActiveModal("traceLogic")}
+            onClick={() => {
+              setActiveModal("traceLogic");
+              setMobileMenuOpen(false);
+            }}
           >
             <span className={styles.sidebarNavIcon}>🔍</span>
             <span>Trace Logic</span>
@@ -1517,7 +1581,10 @@ export default function M1WorkspaceClient(): React.JSX.Element {
           <button
             type="button"
             className={styles.sidebarFooterBtn}
-            onClick={() => setActiveModal("guide")}
+            onClick={() => {
+              setActiveModal("guide");
+              setMobileMenuOpen(false);
+            }}
           >
             <span className={styles.sidebarNavIcon}>❓</span>
             <span>Help &amp; Guide</span>
@@ -1525,7 +1592,10 @@ export default function M1WorkspaceClient(): React.JSX.Element {
           <button
             type="button"
             className={styles.sidebarFooterBtn}
-            onClick={() => setActiveModal("settings")}
+            onClick={() => {
+              setActiveModal("settings");
+              setMobileMenuOpen(false);
+            }}
           >
             <span className={styles.sidebarNavIcon}>⚙️</span>
             <span>Settings</span>
@@ -1575,6 +1645,8 @@ export default function M1WorkspaceClient(): React.JSX.Element {
           }
           sidebarCollapsed={sidebarCollapsed}
           onToggleSidebar={toggleSidebar}
+          onToggleMobileMenu={() => setMobileMenuOpen((o) => !o)}
+          mobileMenuOpen={mobileMenuOpen}
           styles={styles}
           backendStatus={backendStatus}
         />
@@ -2305,11 +2377,11 @@ export default function M1WorkspaceClient(): React.JSX.Element {
                     <button
                       type="button"
                       className={styles.zoomBtn}
-                      onClick={fitToScreen}
-                      title="Fit flowchart to view (⊡)"
-                      aria-label="Fit to View"
+                      onClick={autoArrangeLayout}
+                      title="Auto Arrange Flowchart (✨)"
+                      aria-label="Auto Arrange Flowchart"
                     >
-                      ⊡
+                      ✨
                     </button>
                     <button
                       type="button"
@@ -2320,22 +2392,13 @@ export default function M1WorkspaceClient(): React.JSX.Element {
                     >
                       🗺
                     </button>
-                    <button
-                      type="button"
-                      className={`${styles.zoomBtn} ${isFullscreen ? styles.zoomBtnActive : ""}`}
-                      onClick={toggleFullscreen}
-                      title={isFullscreen ? "Exit Fullscreen (Esc)" : "Fullscreen Mode"}
-                      aria-label={isFullscreen ? "Exit Fullscreen" : "Fullscreen Mode"}
-                    >
-                      {isFullscreen ? "🗗" : "⛶"}
-                    </button>
                   </div>
                 </div>
               </div>
 
               {/* Node Inspector and Connector */}
               {selected && (
-                <div className={styles.nodeInspectorPanel}>
+                <div id="node-inspector" className={styles.nodeInspectorPanel}>
                   <div className={styles.inspectorHeader}>
                     <strong>Selected: {selected.kind.toUpperCase()} Block</strong>
                     <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
@@ -2887,7 +2950,7 @@ export default function M1WorkspaceClient(): React.JSX.Element {
                 const srcNode = graph.nodes.find((n) => n.id === edge.from);
                 const destNode = graph.nodes.find((n) => n.id === edge.to);
                 return (
-                  <div className={styles.nodeInspectorPanel}>
+                  <div id="edge-inspector" className={styles.nodeInspectorPanel}>
                     <div className={styles.inspectorHeader}>
                       <strong>Selected: Arrow (Connection)</strong>
                       <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>

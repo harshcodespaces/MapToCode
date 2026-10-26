@@ -31,6 +31,50 @@
   pointer-events: none !important;
 }
 
+.sidebarMobileOpen {
+  /* Desktop default: unaffected */
+}
+
+.sidebarBackdrop {
+  display: none;
+}
+
+.mobileMenuBtn {
+  display: none;
+}
+
+.mobileMenuBtnText {
+  display: none;
+}
+
+.traceTextShort {
+  display: none;
+}
+
+.traceTextFull {
+  display: inline;
+}
+
+.headerBtnIcon {
+  display: inline;
+}
+
+.headerBtnText {
+  display: inline;
+}
+
+.homeBtnText {
+  display: inline;
+}
+
+.newBtnText {
+  display: inline;
+}
+
+.projectTitleText {
+  display: inline;
+}
+
 .sidebarBrand {
   height: 68px;
   display: flex;
@@ -1292,7 +1336,9 @@
 
 .canvasScroll {
   width: 100%;
-  height: 580px;
+  height: 100%;
+  min-height: 100%;
+  flex: 1;
   overflow: auto;
   background-color: var(--paper);
   background-image: radial-gradient(var(--line) 1px, transparent 1px);
@@ -3478,41 +3524,45 @@
   }
   .topHeader {
     height: auto;
-    min-height: 64px;
-    padding: 12px 20px;
+    min-height: 58px;
+    padding: 10px 18px;
     flex-wrap: wrap;
-    gap: 12px;
+    gap: 10px;
   }
   .titleArea {
     flex: 1 1 auto;
-    min-width: 200px;
+    min-width: 0;
   }
   .headerRight {
     flex: 1 1 auto;
     justify-content: flex-end;
     flex-wrap: wrap;
-    gap: 10px;
+    gap: 8px;
   }
   .stepperContainer {
-    padding: 14px 20px;
+    padding: 10px 16px;
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+  .stepperContainer::-webkit-scrollbar {
+    display: none;
   }
   .stepper {
-    min-width: 620px;
+    min-width: 580px;
     justify-content: space-between;
-    gap: 16px;
-    padding-bottom: 4px;
+    gap: 12px;
+    padding-bottom: 2px;
   }
   .stageContent {
-    padding: 24px 20px;
+    padding: 20px 16px;
   }
   .approvalBox {
     flex-direction: column;
     align-items: stretch;
-    gap: 16px;
+    gap: 14px;
     text-align: left;
-    padding: 20px;
+    padding: 18px;
   }
   .approvalBox p {
     max-width: 100%;
@@ -3525,7 +3575,7 @@
   .step5Header {
     flex-direction: column;
     align-items: flex-start;
-    gap: 14px;
+    gap: 12px;
   }
   .langSelectorRow {
     width: 100%;
@@ -3541,252 +3591,656 @@
   .workspaceLayout {
     flex-direction: column;
     min-height: 100vh;
+    min-height: 100dvh;
+    position: relative;
+    max-width: 100vw;
+    overflow-x: clip;
   }
+
+  /* Slide-over Mobile Drawer Sidebar */
   .sidebar {
-    width: 100%;
-    height: auto;
-    position: static;
-    border-right: none;
-    border-bottom: 1px solid rgba(0, 0, 0, 0.15);
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    bottom: 0 !important;
+    width: 280px !important;
+    max-width: 84vw !important;
+    height: 100% !important;
+    height: 100dvh !important;
+    z-index: 1200 !important;
+    transform: translateX(-100%);
+    transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1) !important;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.45);
+    margin-left: 0 !important;
+    display: flex !important;
+    flex-direction: column !important;
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch;
+    border-right: 1px solid rgba(255, 255, 255, 0.12) !important;
+    border-bottom: none !important;
   }
+
+  .sidebarMobileOpen {
+    transform: translateX(0) !important;
+  }
+
   .sidebarCollapsed {
+    margin-left: 0 !important;
+  }
+
+  .sidebarBackdrop {
+    display: block !important;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.6);
+    backdrop-filter: blur(3px);
+    z-index: 1190;
+    cursor: pointer;
+  }
+
+  .mobileMenuBtn {
+    display: inline-flex !important;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    height: 34px;
+    padding: 0 9px;
+    background: var(--paper-soft);
+    border: 1px solid var(--line-strong);
+    border-radius: var(--radius-sm);
+    color: var(--forest-primary);
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 600;
+    flex-shrink: 0;
+    transition: all 0.15s ease;
+  }
+
+  .mobileMenuBtn:hover {
+    background: var(--paper);
+    border-color: var(--amber);
+    color: var(--amber-dark, #8C4F17);
+  }
+
+  .sidebarExpandBtn {
     display: none !important;
   }
+
   .sidebarBrand {
-    height: 56px;
+    height: 58px;
     padding: 0 16px;
+    justify-content: space-between;
   }
+
   .sidebarNav {
-    flex-direction: row;
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-    padding: 8px 12px;
-    gap: 6px;
-    scrollbar-width: none;
+    flex-direction: column !important;
+    overflow-x: visible !important;
+    padding: 14px 12px !important;
+    gap: 6px !important;
   }
-  .sidebarNav::-webkit-scrollbar {
-    display: none;
-  }
+
   .sidebarNavItem {
-    width: auto;
-    white-space: nowrap;
+    width: 100% !important;
+    white-space: normal !important;
     flex-shrink: 0;
-    padding: 8px 14px;
+    padding: 10px 14px !important;
+    font-size: 13.5px !important;
   }
+
+  .sidebarProgressBox {
+    display: flex !important;
+    margin: 8px 12px;
+  }
+
+  .sidebarFooter {
+    display: flex !important;
+    margin-top: auto !important;
+    padding: 14px 12px !important;
+  }
+
   .sidebarBottom {
     display: none;
   }
+
+  /* Main Workspace Surface */
+  .workspaceMain {
+    width: 100%;
+    min-width: 0;
+  }
+
   .step1BodyGrid {
     grid-template-columns: 1fr;
-    gap: 20px;
+    gap: 16px;
   }
+
   .step1SubTabs {
     flex-direction: row;
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
-    gap: 8px;
+    gap: 6px;
     padding-bottom: 4px;
     scrollbar-width: none;
   }
+
   .step1SubTabs::-webkit-scrollbar {
     display: none;
   }
+
   .subTabButton {
     flex-shrink: 0;
     white-space: nowrap;
-    padding: 10px 16px;
+    padding: 8px 14px;
+    font-size: 12.5px;
+    min-height: 38px;
   }
+
   .branchGrid {
     grid-template-columns: 1fr;
-    gap: 14px;
+    gap: 12px;
   }
+
   .flowchartWorkspace {
     flex-direction: column;
-    gap: 14px;
+    gap: 12px;
     min-height: auto;
   }
+
   .palette {
     width: 100%;
     flex-direction: row;
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
-    padding: 12px 14px;
-    gap: 14px;
+    padding: 8px 10px;
+    gap: 8px;
     align-items: center;
-    scrollbar-width: thin;
+    scrollbar-width: none;
   }
+
+  .palette::-webkit-scrollbar {
+    display: none;
+  }
+
+  .paletteItem {
+    flex-shrink: 0;
+  }
+
+  .shapePill,
+  .shapePillEnd {
+    width: 80px;
+    height: 32px;
+    font-size: 11px;
+  }
+
+  .shapeParallelogram,
+  .shapeParallelogramPink {
+    width: 80px;
+    height: 32px;
+    font-size: 11px;
+  }
+
+  .shapeRectangle {
+    width: 80px;
+    height: 32px;
+    font-size: 11px;
+  }
+
+  .shapeDiamond {
+    width: 68px;
+    height: 32px;
+    font-size: 10px;
+  }
+
   .canvasScroll {
-    height: 480px;
+    height: 440px;
+    min-height: 340px;
+    max-height: 56vh;
+    touch-action: pan-x pan-y;
   }
+
   .stageContent {
-    padding: 20px 16px;
+    padding: 16px 14px;
   }
+
   .stepper::before {
     display: none;
   }
+
   .stageFooter {
     flex-wrap: wrap;
-    gap: 12px;
+    gap: 10px;
+    margin-top: 20px;
   }
+
   .primaryActionBtn,
-  .backBtn {
+  .backBtn,
+  .secondaryActionBtn {
     min-height: 44px;
     display: inline-flex;
     align-items: center;
     justify-content: center;
+  }
+
+  /* Form controls font size on mobile to prevent iOS Safari auto-zoom */
+  .workspaceLayout input:not([type="checkbox"]):not([type="radio"]),
+  .workspaceLayout select,
+  .workspaceLayout textarea {
+    font-size: 16px !important;
   }
 }
 
 /* 4. Phones & Small Screens (<= 640px) */
 @media (max-width: 640px) {
   .topHeader {
-    padding: 12px 14px;
-  }
-  .titleArea {
-    width: 100%;
-  }
-  .headerRight {
-    width: 100%;
-    justify-content: flex-start;
+    padding: 8px 12px;
     gap: 8px;
+    min-height: 52px;
   }
-  .editorToolbarRow {
+
+  .titleArea {
+    width: auto;
+    flex: 1 1 auto;
+    min-width: 0;
+    gap: 6px;
+  }
+
+  .projectTitle {
+    font-size: 14.5px;
+    max-width: 145px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .projectTitleText {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .titleInput {
+    font-size: 14.5px;
+    max-width: 145px;
+    padding: 4px 8px;
+  }
+
+  .homeBtnText,
+  .newBtnText {
+    display: none;
+  }
+
+  .homeBtn,
+  .headerNewBtn {
+    padding: 0 8px;
+    height: 32px;
+    gap: 0;
+  }
+
+  .headerRight {
+    width: auto;
+    justify-content: flex-end;
+    gap: 6px;
+    flex-shrink: 0;
+  }
+
+  .workflowSelectorPill {
+    height: 32px;
+    padding: 0 8px 0 4px;
+    gap: 4px;
+  }
+
+  .workflowPillTitle {
+    display: none;
+  }
+
+  .traceLogicHeaderBtn {
+    height: 32px;
+    padding: 0 8px;
+    font-size: 11.5px;
+    gap: 4px;
+  }
+
+  .traceTextFull {
+    display: none;
+  }
+
+  .traceTextShort {
+    display: inline;
+  }
+
+  .manualSaveBtn,
+  .manualExportBtn {
+    height: 32px;
+    padding: 0 8px;
+    font-size: 11.5px;
+  }
+
+  .progressRow {
+    padding: 8px 12px;
+    gap: 4px;
+  }
+
+  .progressStatusText {
+    font-size: 11px;
     flex-direction: column;
     align-items: flex-start;
-    gap: 12px;
+    gap: 2px;
   }
+
+  .stepperContainer {
+    padding: 6px 12px;
+    scrollbar-width: none;
+  }
+
+  .stepper {
+    min-width: auto !important;
+    width: max-content;
+    gap: 6px;
+    padding: 2px 0;
+  }
+
+  .stepSubtitle {
+    display: none !important;
+  }
+
+  .stepButton {
+    padding: 5px 8px;
+    min-height: 36px;
+    gap: 5px;
+  }
+
+  .stepCircle {
+    width: 22px;
+    height: 22px;
+    font-size: 10px;
+  }
+
+  .stepTitle {
+    font-size: 11.5px;
+  }
+
+  .editorToolbarRow {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+  }
+
+  .editorTitleInfo h2 {
+    font-size: 18px;
+  }
+
+  .editorTitleInfo p {
+    font-size: 12px;
+  }
+
   .editorActions {
     width: 100%;
     flex-wrap: nowrap !important;
     overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
     scrollbar-width: none;
-    gap: 5px;
+    gap: 6px;
     padding-bottom: 2px;
   }
+
   .editorActions::-webkit-scrollbar {
     display: none;
   }
+
+  .editorActions button {
+    flex-shrink: 0;
+    font-size: 11.5px;
+    height: 32px;
+    padding: 0 9px;
+  }
+
+  .customizeMenu {
+    position: fixed !important;
+    top: 50% !important;
+    left: 50% !important;
+    transform: translate(-50%, -50%) !important;
+    width: 92vw !important;
+    max-width: 330px !important;
+    max-height: 82vh !important;
+    overflow-y: auto !important;
+    z-index: 2000 !important;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.45) !important;
+  }
+
   .fieldGrid {
     grid-template-columns: 1fr;
     gap: 10px;
   }
+
   .codeViewerHeader {
     flex-direction: column;
     align-items: flex-start;
     gap: 10px;
-    padding: 12px 14px;
+    padding: 10px 12px;
   }
+
   .codeButtonRow {
     width: 100%;
     justify-content: flex-start;
-    gap: 8px;
+    gap: 6px;
   }
+
   .previewHeaderRow {
     flex-wrap: wrap;
-    gap: 10px;
-    padding: 12px 14px;
+    gap: 8px;
+    padding: 10px 12px;
   }
+
   .previewPaneBody {
-    padding: 18px 14px;
+    padding: 14px 12px;
   }
+
   .codePre {
-    padding: 18px 14px;
+    padding: 14px 12px;
+    font-size: 12px;
+  }
+
+  .addRow {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .addStepBtn {
+    flex: 1 1 calc(50% - 6px);
+    font-size: 11px;
+    height: 34px;
+    padding: 0 8px;
+    text-align: center;
+    justify-content: center;
   }
 }
 
 /* 5. Mobile Portrait Phones (<= 480px) */
 @media (max-width: 480px) {
   .topHeader {
-    padding: 10px 12px;
+    padding: 8px 10px;
+    gap: 6px;
   }
-  .stepperContainer {
-    padding: 10px 12px;
+
+  .projectTitle {
+    max-width: 105px;
+    font-size: 13.5px;
   }
+
+  .titleInput {
+    max-width: 105px;
+    font-size: 13.5px;
+  }
+
+  .headerBtnText {
+    display: none;
+  }
+
+  .manualSaveBtn,
+  .manualExportBtn {
+    padding: 0 7px;
+  }
+
   .stageContent {
-    padding: 14px 12px;
+    padding: 12px 10px;
   }
+
   .step1CenterCard,
   .step1RightCard {
-    padding: 18px 14px;
+    padding: 14px 10px;
   }
+
   .variablesHeaderRow {
-    grid-template-columns: 1fr 105px 36px;
-    gap: 8px;
+    grid-template-columns: 1fr 90px 36px;
+    gap: 6px;
   }
+
   .variableRow {
-    grid-template-columns: 1fr 105px 36px;
+    grid-template-columns: 1fr 90px 36px;
+    gap: 6px;
+  }
+
+  .variableNameInput {
+    padding: 0 8px;
+    font-size: 16px !important;
+  }
+
+  .variableTypeSelect {
+    padding: 0 6px;
+    font-size: 16px !important;
+  }
+
+  .deleteVarBtn {
+    width: 36px;
+    height: 36px;
+    min-width: 36px;
+    padding: 0;
+  }
+
+  .specStep {
+    padding: 12px 10px;
+  }
+
+  .infoCalloutBox {
+    padding: 10px 12px;
     gap: 8px;
   }
-  .variableNameInput {
-    padding: 0 10px;
-  }
-  .variableTypeSelect {
-    padding: 0 8px;
-  }
-  .specStep {
-    padding: 14px 12px;
-  }
-  .infoCalloutBox {
-    padding: 12px 14px;
-    gap: 10px;
-  }
+
   .matchCard,
   .infoMatchCard,
   .blueHelpCard,
   .conflictCard {
-    padding: 14px 14px;
-    gap: 10px;
+    padding: 12px;
+    gap: 8px;
   }
+
   .noticeBanner,
   .errorBanner {
-    padding: 10px 14px;
+    padding: 8px 12px;
+    font-size: 12.5px;
   }
+
   .nodeInspectorPanel {
-    padding: 14px 14px;
+    padding: 12px 10px;
+    gap: 10px;
   }
+
+  .nodeInspectorPanel input,
+  .nodeInspectorPanel select,
+  .nodeInspectorPanel textarea {
+    font-size: 16px !important;
+  }
+
   .connectForm {
     flex-direction: column;
     align-items: stretch;
     gap: 8px;
   }
+
   .connectForm select,
   .connectSubmitBtn {
     width: 100%;
+    min-height: 40px;
   }
+
+  .canvasScroll {
+    height: 380px;
+    min-height: 320px;
+  }
+
+  .zoomControlPill {
+    bottom: 8px;
+    right: 8px;
+    padding: 2px 4px;
+    gap: 3px;
+  }
+
+  .zoomBtn {
+    width: 24px;
+    height: 24px;
+    font-size: 10px;
+  }
+
+  .zoomValue {
+    font-size: 10px;
+    padding: 0 2px;
+  }
+
   .modalDialog {
     width: 95%;
-    max-height: 92vh;
+    max-height: 90vh;
+    max-height: 90dvh;
   }
+
   .modalHeader {
-    padding: 14px 16px;
+    padding: 12px 14px;
   }
+
   .modalBody {
-    padding: 16px 14px;
-    max-height: calc(92vh - 72px);
+    padding: 14px 12px;
+    max-height: calc(90vh - 60px);
+    max-height: calc(90dvh - 60px);
   }
+
+  .chooseWorkflowModalDialog {
+    width: 95%;
+    max-height: 90vh;
+    max-height: 90dvh;
+    overflow-y: auto;
+  }
+
   .savedProjectItem {
     flex-direction: column;
     align-items: flex-start;
-    gap: 10px;
+    gap: 8px;
   }
+
   .projectItemActions {
     width: 100%;
     justify-content: flex-end;
+    gap: 6px;
   }
+
   .settingsBtnRow {
     flex-direction: column;
     gap: 8px;
   }
+
   .stageFooter {
-    flex-direction: column;
+    flex-direction: column-reverse;
     align-items: stretch;
-    gap: 10px;
+    gap: 8px;
   }
+
   .primaryActionBtn,
-  .backBtn {
+  .backBtn,
+  .secondaryActionBtn {
     width: 100%;
+    min-height: 44px;
     text-align: center;
+    justify-content: center;
   }
+
   .stageFooterRight {
     flex-direction: column;
     align-items: stretch;
@@ -3802,16 +4256,25 @@
   .variableRow {
     display: flex;
     flex-wrap: wrap;
-    gap: 8px;
+    gap: 6px;
   }
   .variableNameInput {
     flex: 1 1 100%;
+    font-size: 16px !important;
   }
   .variableTypeSelect {
     flex: 1 1 calc(100% - 46px);
+    font-size: 16px !important;
   }
   .deleteVarBtn {
     width: 38px;
+    height: 38px;
+  }
+  .projectTitle {
+    max-width: 85px;
+  }
+  .addStepBtn {
+    flex: 1 1 100%;
   }
 }
 

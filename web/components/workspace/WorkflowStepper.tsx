@@ -21,7 +21,7 @@ interface WorkflowStepperProps {
 
 export default function WorkflowStepper({
   workflow,
-  stage: _stage,
+  stage,
   setStage,
   activeWorkflowSteps,
   currentStepIndex,
@@ -30,19 +30,31 @@ export default function WorkflowStepper({
 }: WorkflowStepperProps): React.JSX.Element {
   const currentStepObj = activeWorkflowSteps[currentStepIndex] || activeWorkflowSteps[0];
   const totalSteps = activeWorkflowSteps.length;
+  const activeStepRef = React.useRef<HTMLButtonElement | null>(null);
+
+  // Auto-scroll active step into view on mobile
+  React.useEffect(() => {
+    if (activeStepRef.current) {
+      activeStepRef.current.scrollIntoView({
+        behavior: "smooth",
+        block: "nearest",
+        inline: "center",
+      });
+    }
+  }, [stage, currentStepIndex]);
 
   return (
     <>
       {/* Progress Bar & Status */}
       <div className={styles.progressRow}>
         <div className={styles.progressStatusText}>
-          <span>
+          <span className={styles.workflowStatusText}>
             Active Workflow:{" "}
             <strong>
-              {workflow === "flowchart" ? "Option B — Draw My Flowchart" : "Option A — Describe My Logic"}
+              {workflow === "flowchart" ? "Option B — Draw Flowchart" : "Option A — Describe Logic"}
             </strong>
           </span>
-          <span>
+          <span className={styles.stepProgressText}>
             Step {currentStepIndex + 1} of {totalSteps}: <strong>{currentStepObj.label}</strong> ({progressPercentage}%)
           </span>
         </div>
@@ -62,6 +74,7 @@ export default function WorkflowStepper({
               <button
                 type="button"
                 key={step.id}
+                ref={isCurrent ? activeStepRef : null}
                 onClick={() => setStage(step.id)}
                 className={`${styles.stepButton} ${isCurrent ? styles.stepCurrent : ""} ${
                   isPast ? styles.stepCompleted : ""

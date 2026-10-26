@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useRef, useState } from "react";
+import React, { useRef, useState, useMemo } from "react";
 import styles from "../workspace/workspace.module.css";
 
 export interface FlowchartCanvasNode {
@@ -85,6 +85,7 @@ export interface FlowCanvasProps {
   selectedEdge?: string | null;
   setSelectedEdge?: (id: string | null) => void;
   onDeleteEdge?: (edgeId: string) => void;
+  onDeleteNode?: (nodeId: string) => void;
   onInsertNodeOnEdge?: (edgeId: string, kind: "input" | "process" | "decision" | "output") => void;
   onConnect?: (from: string, to: string, branch?: "true" | "false") => void;
   snapToGrid?: boolean;
@@ -94,6 +95,8 @@ export interface FlowCanvasProps {
   showMinimap?: boolean;
   nodeColorTags?: Record<string, string>;
   nodeNotes?: Record<string, string>;
+  onAddNodeAtPosition?: (kind: string, pos: { x: number; y: number }) => void;
+  emptyWatermark?: React.ReactNode;
 }
 
 interface DragState {
@@ -116,6 +119,7 @@ export default function FlowCanvas({
   selectedEdge = null,
   setSelectedEdge = () => {},
   onDeleteEdge = () => {},
+  onDeleteNode = () => {},
   onInsertNodeOnEdge = () => {},
   onConnect = () => {},
   snapToGrid = true,
@@ -125,13 +129,35 @@ export default function FlowCanvas({
   showMinimap = false,
   nodeColorTags = {},
   nodeNotes = {},
+  onAddNodeAtPosition,
+  emptyWatermark,
 }: FlowCanvasProps): React.JSX.Element {
-  const nodes: FlowchartCanvasNode[] = flowchart?.nodes || [];
+  const nodes: FlowchartCanvasNode[] = useMemo(() => flowchart?.nodes || [], [flowchart?.nodes]);
   const [dragging, setDragging] = useState<DragState | null>(null);
   const [insertingOnEdge, setInsertingOnEdge] = useState<string | null>(null);
   const [connectingFrom, setConnectingFrom] = useState<{ id: string; branch?: "true" | "false" } | null>(null);
   const canvasRef = useRef<HTMLDivElement>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
+
+  // Auto-center canvas viewport on flowchart nodes on initial load or revision changes
+  React.useEffect(() => {
+    if (!viewportRef.current || nodes.length === 0) return;
+    const positions = flowchart?.layout?.positions || {};
+    let minX = Infinity;
+    let maxX = -Infinity;
+    nodes.forEach((n) => {
+      const p = positions[n.id] || { x: 380, y: 100 };
+      const dims = getNodeDimensions(n.kind);
+      if (p.x < minX) minX = p.x;
+      if (p.x + dims.width > maxX) maxX = p.x + dims.width;
+    });
+    if (minX !== Infinity && maxX !== -Infinity) {
+      const centerX = ((minX + maxX) / 2) * zoom;
+      const viewportW = viewportRef.current.clientWidth || 360;
+      const targetScroll = Math.max(0, centerX - viewportW / 2);
+      viewportRef.current.scrollLeft = targetScroll;
+    }
+  }, [flowchart?.revision, flowchart?.layout?.positions, nodes, zoom]);
 
   const pointerDown = (event: React.PointerEvent<HTMLButtonElement>, node: FlowchartCanvasNode) => {
     if (readOnly) {
@@ -203,7 +229,7 @@ export default function FlowCanvas({
   const tallest = Math.max(680, ...nodes.map((node) => (flowchart?.layout?.positions?.[node.id]?.y || 0) + 140));
 
   return (
-    <div style={{ position: "relative", width: "100%", height: "100%" }}>
+    <div style={{ position: "relative", width: "100%", height: "100%", display: "flex", flexDirection: "column", flex: 1, minHeight: 0 }}>
       {connectingFrom && (
         <div className={styles.connectingBanner}>
           <span>
@@ -222,11 +248,17 @@ export default function FlowCanvas({
           </button>
         </div>
       )}
-      <div ref={viewportRef} className={styles.canvasScroll} onClick={handleCanvasBackgroundClick}>
+      <div
+        ref={viewportRef}
+        className={styles.canvasScroll}
+        style={{ width: "100%", height: "100%", minHeight: "100%", flex: 1 }}
+        onClick={handleCanvasBackgroundClick}
+      >
         <div
           style={{
             width: widest * zoom,
-            height: tallest * zoom,
+            height: Math.max(tallest * zoom, 700),
+            minHeight: "100%",
             position: "relative",
             margin: "0 auto",
           }}
@@ -248,25 +280,49 @@ export default function FlowCanvas({
             onPointerMove={pointerMove}
             onPointerUp={() => setDragging(null)}
             onClick={handleCanvasBackgroundClick}
+            onDragOver={(e) => {
+              if (onAddNodeAtPosition) {
+                e.preventDefault();
+                e.dataTransfer.dropEffect = "copy";
+              }
+            }}
+            onDrop={(e) => {
+              if (onAddNodeAtPosition && canvasRef.current) {
+                e.preventDefault();
+                const kind = e.dataTransfer.getData("application/maptocode-node") || e.dataTransfer.getData("text/plain");
+                if (kind) {
+                  const rect = canvasRef.current.getBoundingClientRect();
+                  let x = (e.clientX - rect.left) / zoom;
+                  let y = (e.clientY - rect.top) / zoom;
+                  if (snapToGrid) {
+                    x = Math.round(x / 20) * 20;
+                    y = Math.round(y / 20) * 20;
+                  }
+                  onAddNodeAtPosition(kind, { x: Math.max(20, Math.round(x)), y: Math.max(20, Math.round(y)) });
+                }
+              }
+            }}
           >
             {nodes.length === 0 && (
-              <div className={styles.canvasEmptyState}>
-                <div className={styles.canvasEmptyIcon}>📋</div>
-                <h3>Your Flowchart Canvas is Ready</h3>
-                <p>
-                  Add blocks from the left palette to build your algorithm,
-                  or click below to place a <strong>Start Block</strong>.
-                </p>
-                {!readOnly && onAddStart && (
-                  <button
-                    type="button"
-                    className={styles.canvasEmptyAddBtn}
-                    onClick={onAddStart}
-                  >
-                    ＋ Add Start Block
-                  </button>
-                )}
-              </div>
+              emptyWatermark ? emptyWatermark : (
+                <div className={styles.canvasEmptyState}>
+                  <div className={styles.canvasEmptyIcon}>📋</div>
+                  <h3>Your Flowchart Canvas is Ready</h3>
+                  <p>
+                    Add blocks from the left palette to build your algorithm,
+                    or click below to place a <strong>Start Block</strong>.
+                  </p>
+                  {!readOnly && onAddStart && (
+                    <button
+                      type="button"
+                      className={styles.canvasEmptyAddBtn}
+                      onClick={onAddStart}
+                    >
+                      ＋ Add Start Block
+                    </button>
+                  )}
+                </div>
+              )
             )}
 
             {/* SVG Connector Wires */}
@@ -493,7 +549,15 @@ export default function FlowCanvas({
                   onPointerDown={(event) => pointerDown(event, node)}
                   onPointerUp={pointerUp}
                   onPointerCancel={pointerUp}
-                  onClick={() => {
+                  onKeyDown={(event) => {
+                    if (!readOnly && (event.key === "Delete" || event.key === "Backspace")) {
+                      event.preventDefault();
+                      event.stopPropagation();
+                      onDeleteNode(node.id);
+                    }
+                  }}
+                  onClick={(event) => {
+                    event.currentTarget.focus();
                     if (connectingFrom) {
                       if (connectingFrom.id !== node.id && node.kind !== "start") {
                         onConnect(connectingFrom.id, node.id, connectingFrom.branch);
@@ -562,7 +626,7 @@ export default function FlowCanvas({
                     <span className={styles.nodeLabelText}>
                       {node.payload?.operation === "declaration"
                         ? `${node.payload.name} = ${node.payload.initializer || 0}`
-                        : node.payload?.expression || "Calculate"}
+                        : `${String(node.payload?.symbolId || "").replace(/^symbol-/, "") || "result"} = ${node.payload?.expression || "Calculate"}`}
                     </span>
                   )}
                   {node.kind === "output" && (

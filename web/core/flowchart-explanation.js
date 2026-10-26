@@ -124,6 +124,41 @@ export function explainFlowchartToLearner(flowchart) {
   const visited = new Set();
   const narrativeSteps = [];
   const pseudocodeLines = [];
+  const postDomMemo = new Map();
+
+  function postDominators(nodeId, active = new Set()) {
+    if (postDomMemo.has(nodeId)) return postDomMemo.get(nodeId);
+    if (active.has(nodeId)) return new Set([nodeId]);
+    const successors = outgoing.get(nodeId) || [];
+    if (successors.length === 0) {
+      const terminal = new Set([nodeId]);
+      postDomMemo.set(nodeId, terminal);
+      return terminal;
+    }
+    const nextActive = new Set(active).add(nodeId);
+    const childSets = successors.map((edge) => postDominators(edge.to, nextActive));
+    const common = new Set([...childSets[0]].filter((id) => childSets.every((set) => set.has(id))));
+    common.add(nodeId);
+    postDomMemo.set(nodeId, common);
+    return common;
+  }
+
+  function reaches(fromId, targetId, seen = new Set()) {
+    if (fromId === targetId) return true;
+    if (seen.has(fromId)) return false;
+    seen.add(fromId);
+    return (outgoing.get(fromId) || []).some((edge) => reaches(edge.to, targetId, seen));
+  }
+
+  function findDecisionJoin(trueId, falseId) {
+    if (trueId === falseId) return trueId;
+    const falsePostDominators = postDominators(falseId);
+    const common = [...postDominators(trueId)].filter((id) => falsePostDominators.has(id));
+    const nearest = common.filter((candidate) => !common.some(
+      (other) => other !== candidate && reaches(other, candidate)
+    ));
+    return nearest.length === 1 ? nearest[0] : null;
+  }
 
   function trace(currentId, depth = 0, stopAt = null) {
     if (!currentId || currentId === stopAt) return;
@@ -164,6 +199,7 @@ export function explainFlowchartToLearner(flowchart) {
       const branchEdges = outgoing.get(node.id) || [];
       const trueEdge = branchEdges.find((e) => e.branch === "true");
       const falseEdge = branchEdges.find((e) => e.branch === "false");
+      const joinId = trueEdge && falseEdge ? findDecisionJoin(trueEdge.to, falseEdge.to) : null;
 
       narrativeSteps.push({
         id: node.id,
@@ -183,7 +219,7 @@ export function explainFlowchartToLearner(flowchart) {
           isBranchLabel: true,
           branch: "true",
         });
-        trace(trueEdge.to, depth + 1, stopAt);
+        trace(trueEdge.to, depth + 1, joinId || stopAt);
       } else {
         pseudocodeLines.push(`${"    ".repeat(depth + 1)}# (No True branch connected)`);
       }
@@ -198,12 +234,13 @@ export function explainFlowchartToLearner(flowchart) {
           isBranchLabel: true,
           branch: "false",
         });
-        trace(falseEdge.to, depth + 1, stopAt);
+        trace(falseEdge.to, depth + 1, joinId || stopAt);
       } else {
         pseudocodeLines.push(`${"    ".repeat(depth + 1)}# (No False branch connected)`);
       }
 
       pseudocodeLines.push(`${"    ".repeat(depth)}END IF`);
+      if (joinId && joinId !== stopAt) trace(joinId, depth, stopAt);
       return;
     }
 

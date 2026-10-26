@@ -45,6 +45,17 @@ export function deriveSpecificationFromFlowchart(flowchart, baseSpecification = 
     return nearest.length === 1 ? nearest[0] : null;
   }
 
+  function allPathsLeadToEnd(fromId, seen = new Set()) {
+    if (!fromId || seen.has(fromId)) return false;
+    const node = nodeById.get(fromId);
+    if (!node) return false;
+    if (node.kind === "end") return true;
+    const succs = outgoing.get(fromId) ?? [];
+    if (!succs.length) return false;
+    const nextSeen = new Set(seen).add(fromId);
+    return succs.every((edge) => allPathsLeadToEnd(edge.to, nextSeen));
+  }
+
   const inputs = [];
   const variables = [];
   const outputs = [];
@@ -195,7 +206,23 @@ export function deriveSpecificationFromFlowchart(flowchart, baseSpecification = 
         if (!trueEdge || !falseEdge) break;
 
         const joinId = nearestJoin(trueEdge.to, falseEdge.to);
-        if (!joinId) break;
+        if (!joinId) {
+          if (allPathsLeadToEnd(trueEdge.to) && allPathsLeadToEnd(falseEdge.to)) {
+            const whenTrue = compileUntil(trueEdge.to, null);
+            const whenFalse = compileUntil(falseEdge.to, null);
+            steps.push({
+              id: `step-${node.id}`,
+              kind: "conditional",
+              payload: {
+                condition: payload.condition || "true",
+                whenTrue,
+                whenFalse,
+              },
+            });
+            break;
+          }
+          break;
+        }
 
         const whenTrue = compileUntil(trueEdge.to, joinId);
         const whenFalse = compileUntil(falseEdge.to, joinId);

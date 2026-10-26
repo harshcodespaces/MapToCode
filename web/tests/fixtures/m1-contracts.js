@@ -7,7 +7,13 @@ export const validProjectEnvelope = {
     inputs: [], outputs: [], variables: [], steps: [], constraints: [], examples: [],
   },
   flowchart: {
-    schemaVersion: "1.0.0", revision: 0, nodes: [], edges: [], layout: { positions: {}, zoom: 1 },
+    schemaVersion: "1.0.0", revision: 0,
+    nodes: [
+      { id: "start", kind: "start", payload: {} },
+      { id: "end", kind: "end", payload: {} },
+    ],
+    edges: [{ id: "edge-start-end", from: "start", to: "end" }],
+    layout: { positions: { start: { x: 32, y: 32 }, end: { x: 32, y: 160 } }, zoom: 1 },
   },
   decisions: [],
   revisions: { semantic: 0, presentation: 0 },

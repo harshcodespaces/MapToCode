@@ -17,6 +17,8 @@ interface WorkspaceHeaderProps {
   onExport: () => void;
   sidebarCollapsed: boolean;
   onToggleSidebar: () => void;
+  onToggleMobileMenu?: () => void;
+  mobileMenuOpen?: boolean;
   styles: Record<string, string>;
   backendStatus?: "connected" | "offline" | "checking";
 }
@@ -34,6 +36,8 @@ export default function WorkspaceHeader({
   onExport,
   sidebarCollapsed,
   onToggleSidebar,
+  onToggleMobileMenu,
+  mobileMenuOpen = false,
   styles,
   backendStatus: _backendStatus = "checking",
 }: WorkspaceHeaderProps): React.JSX.Element {
@@ -43,6 +47,41 @@ export default function WorkspaceHeader({
     <header className={styles.topHeader}>
       {/* Project Title with Edit Icon */}
       <div className={styles.titleArea}>
+        {onToggleMobileMenu && (
+          <button
+            type="button"
+            className={styles.mobileMenuBtn}
+            onClick={onToggleMobileMenu}
+            title={mobileMenuOpen ? "Close menu" : "Open menu"}
+            aria-label={mobileMenuOpen ? "Close menu" : "Open menu"}
+          >
+            <svg
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
+              {mobileMenuOpen ? (
+                <>
+                  <line x1="18" y1="6" x2="6" y2="18" />
+                  <line x1="6" y1="6" x2="18" y2="18" />
+                </>
+              ) : (
+                <>
+                  <line x1="3" y1="6" x2="21" y2="6" />
+                  <line x1="3" y1="12" x2="21" y2="12" />
+                  <line x1="3" y1="18" x2="21" y2="18" />
+                </>
+              )}
+            </svg>
+            <span className={styles.mobileMenuBtnText}>Menu</span>
+          </button>
+        )}
         <Link
           href="/"
           className={styles.homeBtn}
@@ -62,7 +101,7 @@ export default function WorkspaceHeader({
           >
             <path d="M3 9.5L12 3l9 6.5V20a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1V9.5z" />
           </svg>
-          <span>Home</span>
+          <span className={styles.homeBtnText}>Home</span>
         </Link>
         <button
           type="button"
@@ -85,7 +124,7 @@ export default function WorkspaceHeader({
             <line x1="12" y1="5" x2="12" y2="19" />
             <line x1="5" y1="12" x2="19" y2="12" />
           </svg>
-          <span>New</span>
+          <span className={styles.newBtnText}>New</span>
         </button>
         {sidebarCollapsed && (
           <button
@@ -135,7 +174,7 @@ export default function WorkspaceHeader({
           />
         ) : (
           <h1 className={styles.projectTitle} onClick={() => setIsEditingTitle(true)}>
-            <span>{project.name}</span>
+            <span className={styles.projectTitleText}>{project.name}</span>
             <span className={styles.pencilIcon} title="Click to rename" aria-label="Rename project">
               ✏️
             </span>
@@ -166,7 +205,9 @@ export default function WorkspaceHeader({
           onClick={() => setStage("trace")}
           title="Step-by-Step Logic Tracer / Visual Debugger"
         >
-          🔍 Trace Logic
+          <span className={styles.traceIcon}>🔍</span>
+          <span className={styles.traceTextFull}>Trace Logic</span>
+          <span className={styles.traceTextShort}>Trace</span>
         </button>
 
         <button
@@ -175,16 +216,18 @@ export default function WorkspaceHeader({
           onClick={onSave}
           title="Save project to browser storage"
         >
-          💾 Save
+          <span className={styles.headerBtnIcon}>💾</span>
+          <span className={styles.headerBtnText}>Save</span>
         </button>
 
         <button
           type="button"
-          className={styles.manualSaveBtn}
+          className={styles.manualExportBtn || styles.manualSaveBtn}
           onClick={onExport}
           title="Export JSON backup"
         >
-          ⤓ Export
+          <span className={styles.headerBtnIcon}>⤓</span>
+          <span className={styles.headerBtnText}>Export</span>
         </button>
       </div>
     </header>

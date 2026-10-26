@@ -262,6 +262,64 @@ function graphMaps(graph) {
   return outgoing;
 }
 
+function flowchartAssignment(payload = {}) {
+  const rawExpression = String(payload.expression ?? "").trim();
+  const combined = rawExpression.match(/^(.+?)\s*(?:←|<-)\s*([A-Za-z_][A-Za-z0-9_]*)$/)
+    || rawExpression.match(/^(.+?)\s*=\s*([A-Za-z_][A-Za-z0-9_]*)$/);
+  if (combined) return { target: combined[2], expression: combined[1].trim(), embeddedTarget: true };
+  const symbolName = typeof payload.symbolId === "string" ? payload.symbolId.replace(/^symbol-/, "") : "";
+  return { target: payload.target || payload.name || symbolName, expression: rawExpression, embeddedTarget: false };
+}
+
+function normalizeLegacyFlowchart(flowchart) {
+  if (!flowchart || !Array.isArray(flowchart.nodes)) return flowchart;
+  const nodes = flowchart.nodes.map((node) => {
+    const payload = node.payload && typeof node.payload === "object" ? node.payload : {};
+    if (node.kind === "start" || node.kind === "end") return { ...node, payload: {} };
+    if (node.kind === "input") {
+      const name = String(payload.name || "x");
+      return { ...node, payload: {
+        symbolId: payload.symbolId || `symbol-${name}`, name,
+        type: ["int", "double", "char"].includes(payload.type) ? payload.type : "int",
+        prompt: String(payload.prompt || `Enter ${name}: `),
+      } };
+    }
+    if (node.kind === "process" && payload.operation === "declaration") {
+      const name = String(payload.name || "result");
+      return { ...node, payload: {
+        operation: "declaration", symbolId: payload.symbolId || `symbol-${name}`, name,
+        type: ["int", "double", "char"].includes(payload.type) ? payload.type : "int",
+        ...(payload.initializer ? { initializer: String(payload.initializer) } : {}),
+      } };
+    }
+    if (node.kind === "process") {
+      const assignment = flowchartAssignment(payload);
+      const storedSymbolName = typeof payload.symbolId === "string" ? payload.symbolId.replace(/^symbol-/, "") : "";
+      const symbolId = assignment.embeddedTarget || (assignment.target && storedSymbolName && storedSymbolName !== assignment.target)
+        ? `symbol-${assignment.target}`
+        : payload.symbolId || `symbol-${assignment.target || node.id}`;
+      return { ...node, payload: { operation: "assignment", symbolId, expression: assignment.expression } };
+    }
+    if (node.kind === "output") {
+      const outputId = String(payload.outputId || `output-${node.id}`);
+      return payload.mode === "message"
+        ? { ...node, payload: { outputId, mode: "message", message: String(payload.message ?? payload.expression ?? "") } }
+        : { ...node, payload: { outputId, mode: "expression", expression: String(payload.expression ?? payload.message ?? "") } };
+    }
+    if (node.kind === "decision") return { ...node, payload: { condition: String(payload.condition || "") } };
+    return node;
+  });
+  return {
+    ...flowchart,
+    nodes,
+    layout: {
+      ...(flowchart.layout || {}),
+      positions: flowchart.layout?.positions || {},
+      zoom: flowchart.layout?.zoom || 1,
+    },
+  };
+}
+
 function nearestJoin(trueTarget, falseTarget, outgoing, postDominators) {
   const common = [...postDominators(trueTarget)].filter((id) => postDominators(falseTarget).has(id));
   function reaches(from, target, seen = new Set()) {
@@ -275,20 +333,31 @@ function nearestJoin(trueTarget, falseTarget, outgoing, postDominators) {
 }
 
 export function adaptFlowchartToAst(flowchart, { projectId } = {}) {
+  flowchart = normalizeLegacyFlowchart(flowchart);
   const diagnostics = validateFlowchartContract(flowchart);
   if (diagnostics.length) return adapterResult(null, diagnostics);
   const revision = flowchart.revision;
   const nodeById = new Map(flowchart.nodes.map((node) => [node.id, node]));
   const outgoing = graphMaps(flowchart);
   const start = flowchart.nodes.find((node) => node.kind === "start");
-  const end = flowchart.nodes.find((node) => node.kind === "end");
   const symbols = [];
   const symbolById = new Map();
   const symbolByName = new Map();
   for (const node of flowchart.nodes) {
-    if (node.kind === "input") addSymbol(symbols, symbolById, symbolByName, { id: node.payload.symbolId, name: node.payload.name, type: node.payload.type }, "flowchart", revision, diagnostics, node.id);
-    if (node.kind === "process" && node.payload.operation === "declaration") {
-      addSymbol(symbols, symbolById, symbolByName, { id: node.payload.symbolId, name: node.payload.name, type: node.payload.type }, "flowchart", revision, diagnostics, node.id);
+    if (node.kind === "input") {
+      const symId = node.payload?.symbolId || `symbol-${node.payload?.name || node.id}`;
+      addSymbol(symbols, symbolById, symbolByName, { id: symId, name: node.payload?.name, type: node.payload?.type || "int" }, "flowchart", revision, diagnostics, node.id);
+    }
+    if (node.kind === "process" && node.payload?.operation === "declaration") {
+      const symId = node.payload?.symbolId || `symbol-${node.payload?.name || node.id}`;
+      addSymbol(symbols, symbolById, symbolByName, { id: symId, name: node.payload?.name, type: node.payload?.type || "int" }, "flowchart", revision, diagnostics, node.id);
+    }
+    if (node.kind === "process" && node.payload?.operation !== "declaration") {
+      const assignment = flowchartAssignment(node.payload);
+      if (assignment.target && !symbolByName.has(assignment.target)) {
+        const symId = assignment.embeddedTarget ? `symbol-${assignment.target}` : node.payload?.symbolId || `symbol-${assignment.target}`;
+        addSymbol(symbols, symbolById, symbolByName, { id: symId, name: assignment.target, type: node.payload?.type || "int" }, "flowchart", revision, diagnostics, node.id);
+      }
     }
   }
   if (diagnostics.length) return adapterResult(null, diagnostics);
@@ -305,21 +374,46 @@ export function adaptFlowchartToAst(flowchart, { projectId } = {}) {
     postMemo.set(nodeId, intersection);
     return intersection;
   }
+
+  function allPathsLeadToEnd(fromId, seen = new Set()) {
+    if (!fromId || seen.has(fromId)) return false;
+    const node = nodeById.get(fromId);
+    if (!node) return false;
+    if (node.kind === "end") return true;
+    const succs = outgoing.get(fromId) ?? [];
+    if (!succs.length) return false;
+    const nextSeen = new Set(seen).add(fromId);
+    return succs.every((edge) => allPathsLeadToEnd(edge.to, nextSeen));
+  }
+
   const body = builder.block(start.id, "root");
   // Input symbols are declared before executable steps in both source adapters.
   // Keeping this prelude ordered by visual graph order makes the canonical AST
   // independent of where the input arrows sit in the traversal.
   for (const node of flowchart.nodes.filter((item) => item.kind === "input")) {
+    const symId = node.payload?.symbolId || `symbol-${node.payload?.name || node.id}`;
     body.statements.push(recordStatement(builder, {
-      id: stableAstId("flowchart", node.id, "declaration"), kind: "VariableDeclaration", symbolId: node.payload.symbolId,
+      id: stableAstId("flowchart", node.id, "declaration"), kind: "VariableDeclaration", symbolId: symId,
     }, node.id, "input-node-to-variable-declaration"));
+  }
+  const inputSymbolIds = new Set(flowchart.nodes.filter((item) => item.kind === "input").map((item) => item.payload?.symbolId || `symbol-${item.payload?.name || item.id}`));
+  const declaredProcessTargets = new Set();
+  for (const node of flowchart.nodes.filter((item) => item.kind === "process" && item.payload?.operation !== "declaration")) {
+    const assignment = flowchartAssignment(node.payload);
+    const symId = symbolByName.get(assignment.target);
+    if (symId && !inputSymbolIds.has(symId) && !declaredProcessTargets.has(symId)) {
+      declaredProcessTargets.add(symId);
+      body.statements.push(recordStatement(builder, {
+        id: stableAstId("flowchart", node.id, "assignment-target-declaration"), kind: "VariableDeclaration", symbolId: symId,
+      }, node.id, "assignment-target-to-variable-declaration"));
+    }
   }
   let currentId = outgoing.get(start.id)[0].to;
   const consumed = new Set([start.id]);
 
   function compileUntil(initialId, stopId, destination, active, incomingEdge) {
     let nodeId = initialId;
-    while (nodeId !== stopId) {
+    while (nodeId && nodeId !== stopId) {
       if (!nodeById.has(nodeId) || active.has(nodeId) || consumed.has(nodeId)) {
         diagnostics.push(adapterDiagnostic("GRAPH_JOIN_AMBIGUOUS", "semantics", `Flowchart path reaches “${nodeId}” more than once before its join can be established.`, "flowchart", incomingEdge?.id ?? nodeId, revision));
         return stopId;
@@ -330,22 +424,26 @@ export function adaptFlowchartToAst(flowchart, { projectId } = {}) {
       const payload = node.payload;
       if (node.kind === "end") return node.id;
       if (node.kind === "input") {
+        const symId = payload?.symbolId || `symbol-${payload?.name || node.id}`;
         destination.statements.push(recordStatement(builder, {
-          id: stableAstId("flowchart", node.id, "input"), kind: "Input", symbolId: payload.symbolId, prompt: payload.prompt,
+          id: stableAstId("flowchart", node.id, "input"), kind: "Input", symbolId: symId, prompt: payload?.prompt || "",
         }, node.id, "input-node-to-ast-input"));
       } else if (node.kind === "process" && payload.operation === "declaration") {
+        const symId = payload?.symbolId || `symbol-${payload?.name || node.id}`;
         const initializer = payload.initializer
           ? parseWithDiagnostic(builder, payload.initializer, "flowchart", node.id, revision, "initializer", symbolByName, diagnostics)
           : undefined;
         if (payload.initializer && !initializer) return stopId;
         destination.statements.push(recordStatement(builder, {
-          id: stableAstId("flowchart", node.id, "declaration"), kind: "VariableDeclaration", symbolId: payload.symbolId, ...(initializer ? { initializer } : {}),
+          id: stableAstId("flowchart", node.id, "declaration"), kind: "VariableDeclaration", symbolId: symId, ...(initializer ? { initializer } : {}),
         }, node.id));
       } else if (node.kind === "process") {
-        const expression = parseWithDiagnostic(builder, payload.expression, "flowchart", node.id, revision, "assignment", symbolByName, diagnostics);
+        const assignment = flowchartAssignment(payload);
+        const targetSymId = symbolByName.get(assignment.target);
+        const expression = parseWithDiagnostic(builder, assignment.expression, "flowchart", node.id, revision, "assignment", symbolByName, diagnostics);
         if (!expression) return stopId;
         destination.statements.push(recordStatement(builder, {
-          id: stableAstId("flowchart", node.id, "assignment"), kind: "Assignment", symbolId: payload.symbolId, expression,
+          id: stableAstId("flowchart", node.id, "assignment"), kind: "Assignment", symbolId: targetSymId || payload.symbolId, expression,
         }, node.id));
       } else if (node.kind === "output") {
         if (payload.mode === "message") {
@@ -360,25 +458,33 @@ export function adaptFlowchartToAst(flowchart, { projectId } = {}) {
           }, node.id));
         }
       } else if (node.kind === "decision") {
-        const branches = outgoing.get(node.id);
+        const branches = outgoing.get(node.id) || [];
         const trueEdge = branches.find((edge) => edge.branch === "true");
         const falseEdge = branches.find((edge) => edge.branch === "false");
-        const joinId = nearestJoin(trueEdge.to, falseEdge.to, outgoing, postDominators);
+        let joinId = nearestJoin(trueEdge.to, falseEdge.to, outgoing, postDominators);
         if (!joinId) {
-          diagnostics.push(adapterDiagnostic("GRAPH_JOIN_AMBIGUOUS", "semantics", `Decision “${node.id}” has no unique nearest common post-dominator.`, "flowchart", node.id, revision,
-            "Connect both decision paths to one unambiguous join before continuing."));
-          return stopId;
+          if (allPathsLeadToEnd(trueEdge.to) && allPathsLeadToEnd(falseEdge.to)) {
+            joinId = null;
+          } else {
+            diagnostics.push(adapterDiagnostic("GRAPH_JOIN_AMBIGUOUS", "semantics", `Decision “${node.id}” has no unique nearest common post-dominator.`, "flowchart", node.id, revision,
+              "Connect both decision paths to one unambiguous join before continuing."));
+            return stopId;
+          }
         }
         const condition = parseWithDiagnostic(builder, payload.condition, "flowchart", node.id, revision, "condition", symbolByName, diagnostics);
         if (!condition) return stopId;
-        const trueBlock = builder.block(node.id, "then", [node.id, trueEdge.id, joinId]);
-        const falseBlock = builder.block(node.id, "else", [node.id, falseEdge.id, joinId]);
+        const trueBlock = builder.block(node.id, "then", [node.id, trueEdge.id, ...(joinId ? [joinId] : [])]);
+        const falseBlock = builder.block(node.id, "else", [node.id, falseEdge.id, ...(joinId ? [joinId] : [])]);
         compileUntil(trueEdge.to, joinId, trueBlock, new Set(active), trueEdge);
         compileUntil(falseEdge.to, joinId, falseBlock, new Set(active), falseEdge);
         destination.statements.push(recordStatement(builder, {
           id: stableAstId("flowchart", node.id, "conditional"), kind: "IfStatement", condition,
           thenBlock: trueBlock, elseBlock: falseBlock,
         }, node.id));
+        if (!joinId) {
+          nodeId = null;
+          break;
+        }
         nodeId = joinId;
         continue;
       }
@@ -390,8 +496,7 @@ export function adaptFlowchartToAst(flowchart, { projectId } = {}) {
     return nodeId;
   }
 
-  compileUntil(currentId, end.id, body, new Set());
-  consumed.add(end.id);
+  compileUntil(currentId, null, body, new Set());
   if (diagnostics.length) return adapterResult(null, diagnostics);
   if (consumed.size !== flowchart.nodes.length) {
     const remaining = flowchart.nodes.find((node) => !consumed.has(node.id));

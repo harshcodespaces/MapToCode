@@ -9,11 +9,11 @@
     "start": "next start -H 0.0.0.0 -p 3000",
     "lint": "eslint",
     "type-check": "tsc --noEmit",
-    "test": "node --test tests/contracts.test.js tests/ast.test.js tests/adapters.test.js tests/reconciliation.test.js tests/generation.test.js tests/project-service.test.js tests/flowchart-explanation.test.js tests/workflows.test.js tests/trace-engine.test.js tests/reconciliation-sync.test.js"
+    "test": "node --test tests/contracts.test.js tests/ast.test.js tests/adapters.test.js tests/reconciliation.test.js tests/generation.test.js tests/project-service.test.js tests/flowchart-explanation.test.js tests/workflows.test.js tests/trace-engine.test.js tests/reconciliation-sync.test.js tests/workspace-files.test.js tests/pseudocode-parser.test.js tests/java-generator.test.js"
   },
   "dependencies": {
     "ajv": "^8.20.0",
-    "next": "16.4.0",
+    "next": "^16.4.3",
     "react": "19.3.0",
     "react-dom": "19.3.0"
   },
@@ -22,7 +22,7 @@
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "eslint": "^9",
-    "eslint-config-next": "16.4.0",
+    "eslint-config-next": "^16.4.3",
     "typescript": "^5.9.3"
   }
 }
