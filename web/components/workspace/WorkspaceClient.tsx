@@ -166,7 +166,9 @@ function renderFlowchartPreview(flowchart: FlowchartGraph | undefined, cssStyles
           )}
           {node.kind === "output" && (
             <div className={cssStyles.miniNodeOutput}>
-              Print {(node.payload as any).mode === "message" ? `"${(node.payload as any).message || ""}"` : (node.payload as any).expression || ""}
+              Print {(node.payload as any).mode === "formatted"
+                ? `${(node.payload as any).message || ""} ${(node.payload as any).expression || ""}`
+                : (node.payload as any).mode === "message" ? `"${(node.payload as any).message || ""}"` : (node.payload as any).expression || ""}
             </div>
           )}
         </div>
@@ -2775,20 +2777,18 @@ export default function M1WorkspaceClient(): React.JSX.Element {
                           value={(selected.payload as any).mode || "message"}
                           onChange={(e) => {
                             const mode = e.target.value;
+                            const previous = selected.payload as any;
+                            const outputId = previous.outputId || `output-${selected.id}`;
+                            const payload = mode === "formatted"
+                              ? { outputId, mode, message: previous.message || "Result:", expression: previous.expression || (previous.mode === "expression" ? previous.expression : availableAssignTargets[0]?.name || "") }
+                              : mode === "message"
+                                ? { outputId, mode, message: previous.message || previous.expression || "Result" }
+                                : { outputId, mode, expression: previous.expression || previous.message || availableAssignTargets[0]?.name || "" };
                             applyGraph((curr: FlowchartGraph) => ({
                               ...curr,
                               nodes: curr.nodes.map((n) =>
                                 n.id === selected.id
-                                  ? {
-                                      ...n,
-                                      payload: {
-                                        outputId: (n.payload as any).outputId || `output-${n.id}`,
-                                        mode,
-                                        ...(mode === "message"
-                                          ? { message: (n.payload as any).message || "Result" }
-                                          : { expression: (n.payload as any).expression || (availableAssignTargets[0]?.name || "n") }),
-                                      },
-                                    }
+                                  ? { ...n, payload }
                                   : n
                               ),
                             }));
@@ -2796,9 +2796,25 @@ export default function M1WorkspaceClient(): React.JSX.Element {
                         >
                           <option value="message">Display Message (Text)</option>
                           <option value="expression">Display Variable / Expression</option>
+                          <option value="formatted">Message + Variable / Expression</option>
                         </select>
                       </label>
-                      {(selected.payload as any).mode === "expression" ? (
+                      {(selected.payload as any).mode === "formatted" ? (
+                        <>
+                          <label className={styles.inspectorField}>
+                            Fixed message:
+                            <input value={(selected.payload as any).message || ""} placeholder="Area:"
+                              onChange={(e) => applyGraph((curr: FlowchartGraph) => ({ ...curr, nodes: curr.nodes.map((n) => n.id === selected.id
+                                ? { ...n, payload: { ...(n.payload as any), message: e.target.value } } : n) }))} />
+                          </label>
+                          <label className={styles.inspectorField}>
+                            Variable / expression:
+                            <input value={(selected.payload as any).expression || ""} placeholder="area"
+                              onChange={(e) => applyGraph((curr: FlowchartGraph) => ({ ...curr, nodes: curr.nodes.map((n) => n.id === selected.id
+                                ? { ...n, payload: { ...(n.payload as any), expression: e.target.value } } : n) }))} />
+                          </label>
+                        </>
+                      ) : (selected.payload as any).mode === "expression" ? (
                         <label className={styles.inspectorField}>
                           Variable / Expression to display:
                           <input

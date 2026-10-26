@@ -1,5 +1,6 @@
 import { validateAstSemantics } from "./ast-validation.js";
 import { createDiagnostic } from "./diagnostics.js";
+import { beginnerComment, normalizeCodeLevel } from "./code-level.js";
 
 export const JAVA_GENERATOR_VERSION = "1.0.0";
 
@@ -28,17 +29,18 @@ function javaNumber(value, kind) {
   return text;
 }
 
-function javaExpression(expression, symbols) {
+function javaExpression(expression, symbols, compact = false) {
   if (expression.kind === "IntegerLiteral" || expression.kind === "FloatingLiteral") {
     return javaNumber(expression.value, expression.kind);
   }
   if (expression.kind === "CharacterLiteral") return javaCharacter(expression.value);
   if (expression.kind === "VariableReference") return symbols.get(expression.symbolId).name;
   if (expression.kind === "UnaryExpression") {
-    return `(${expression.operator}${javaExpression(expression.operand, symbols)})`;
+    return `(${expression.operator}${javaExpression(expression.operand, symbols, compact)})`;
   }
   if (expression.kind === "BinaryExpression") {
-    return `(${javaExpression(expression.left, symbols)} ${expression.operator} ${javaExpression(expression.right, symbols)})`;
+    const separator = compact ? expression.operator : ` ${expression.operator} `;
+    return `(${javaExpression(expression.left, symbols, compact)}${separator}${javaExpression(expression.right, symbols, compact)})`;
   }
   throw new TypeError(`Unsupported Java expression node: ${expression.kind}`);
 }
@@ -49,6 +51,8 @@ function failure(message, sourceRefs = []) {
 
 export function generateJavaFromAst(ast, options = {}) {
   const className = options.className || "Main";
+  const codeLevel = normalizeCodeLevel(options.codeLevel);
+  const compact = codeLevel === "professional";
   const validation = validateAstSemantics(ast);
   if (!validation.valid) {
     return { code: "", sourceMap: [], diagnostics: validation.diagnostics, generatorVersion: JAVA_GENERATOR_VERSION };
@@ -112,11 +116,12 @@ export function generateJavaFromAst(ast, options = {}) {
 
   function emitStatement(statement, indent) {
     if (unsupported) return;
+    if (codeLevel === "beginner") emit(`// ${beginnerComment(statement)}`, indent);
 
     if (statement.kind === "VariableDeclaration") {
       const symbol = symbols.get(statement.symbolId);
       const jType = javaType(symbol.type);
-      const initializer = statement.initializer ? ` = ${javaExpression(statement.initializer, symbols)}` : "";
+      const initializer = statement.initializer ? ` = ${javaExpression(statement.initializer, symbols, compact)}` : "";
       emit(`${jType} ${symbol.name}${initializer};`, indent, statement);
       return;
     }
@@ -138,7 +143,7 @@ export function generateJavaFromAst(ast, options = {}) {
 
     if (statement.kind === "Assignment") {
       const symbol = symbols.get(statement.symbolId);
-      emit(`${symbol.name} = ${javaExpression(statement.expression, symbols)};`, indent, statement);
+      emit(`${symbol.name} = ${javaExpression(statement.expression, symbols, compact)};`, indent, statement);
       return;
     }
 
@@ -147,12 +152,16 @@ export function generateJavaFromAst(ast, options = {}) {
         emit(`System.out.println(${javaString(statement.message)});`, indent, statement);
         return;
       }
-      emit(`System.out.println(${javaExpression(statement.value, symbols)});`, indent, statement);
+      if (statement.mode === "formatted") {
+        emit(`System.out.println(${javaString(`${statement.message} `)} + ${javaExpression(statement.value, symbols, compact)});`, indent, statement);
+        return;
+      }
+      emit(`System.out.println(${javaExpression(statement.value, symbols, compact)});`, indent, statement);
       return;
     }
 
     if (statement.kind === "IfStatement") {
-      emit(`if (${javaExpression(statement.condition, symbols)}) {`, indent, statement);
+      emit(`if (${javaExpression(statement.condition, symbols, compact)}) {`, indent, statement);
       emitBlock(statement.thenBlock, indent + 1);
       emit("} else {", indent, statement);
       emitBlock(statement.elseBlock, indent + 1);

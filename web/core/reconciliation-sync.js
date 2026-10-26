@@ -106,7 +106,9 @@ export function deriveSpecificationFromFlowchart(flowchart, baseSpecification = 
     if (node.kind === "output") {
       const id = `out-${node.id}`;
       const desc =
-        node.payload?.mode === "message"
+        node.payload?.mode === "formatted"
+          ? `${node.payload.message || "Output"} ${node.payload.expression || "value"}`
+          : node.payload?.mode === "message"
           ? node.payload?.message || "Output message"
           : node.payload?.expression
             ? `Output ${node.payload.expression}`
@@ -178,7 +180,13 @@ export function deriveSpecificationFromFlowchart(flowchart, baseSpecification = 
         });
       } else if (node.kind === "output") {
         const outputId = `out-${node.id}`;
-        if (payload.mode === "message" || !payload.expression) {
+        if (payload.mode === "formatted") {
+          steps.push({
+            id: `step-${node.id}`,
+            kind: "output",
+            payload: { outputId, mode: "formatted", message: payload.message || "", expression: payload.expression },
+          });
+        } else if (payload.mode === "message" || !payload.expression) {
           steps.push({
             id: `step-${node.id}`,
             kind: "output",

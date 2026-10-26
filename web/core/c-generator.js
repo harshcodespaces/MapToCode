@@ -1,5 +1,6 @@
 import { validateAstSemantics } from "./ast-validation.js";
 import { createDiagnostic } from "./diagnostics.js";
+import { beginnerComment, normalizeCodeLevel } from "./code-level.js";
 
 export const C_GENERATOR_VERSION = "1.0.0";
 
@@ -32,12 +33,15 @@ function cNumber(value, kind) {
   return text;
 }
 
-function cExpression(expression, symbols) {
+function cExpression(expression, symbols, compact = false) {
   if (expression.kind === "IntegerLiteral" || expression.kind === "FloatingLiteral") return cNumber(expression.value, expression.kind);
   if (expression.kind === "CharacterLiteral") return cCharacter(expression.value);
   if (expression.kind === "VariableReference") return symbols.get(expression.symbolId).name;
-  if (expression.kind === "UnaryExpression") return `(${expression.operator}${cExpression(expression.operand, symbols)})`;
-  if (expression.kind === "BinaryExpression") return `(${cExpression(expression.left, symbols)} ${expression.operator} ${cExpression(expression.right, symbols)})`;
+  if (expression.kind === "UnaryExpression") return `(${expression.operator}${cExpression(expression.operand, symbols, compact)})`;
+  if (expression.kind === "BinaryExpression") {
+    const separator = compact ? expression.operator : ` ${expression.operator} `;
+    return `(${cExpression(expression.left, symbols, compact)}${separator}${cExpression(expression.right, symbols, compact)})`;
+  }
   throw new TypeError(`Unsupported C expression node: ${expression.kind}`);
 }
 
@@ -45,7 +49,9 @@ function failure(message, sourceRefs = []) {
   return createDiagnostic({ code: "GEN_AST_UNSUPPORTED", category: "generation", message, sourceRefs });
 }
 
-export function generateCFromAst(ast) {
+export function generateCFromAst(ast, options = {}) {
+  const codeLevel = normalizeCodeLevel(options.codeLevel);
+  const compact = codeLevel === "professional";
   const validation = validateAstSemantics(ast);
   if (!validation.valid) return { code: "", sourceMap: [], diagnostics: validation.diagnostics, generatorVersion: C_GENERATOR_VERSION };
 
@@ -68,7 +74,7 @@ export function generateCFromAst(ast) {
       const provenance = ast.provenance.find((entry) => entry.astNodeId === expression.id);
       unsupported = failure("M1 C output supports ASCII character literals only.", provenance?.origins ?? []);
     }
-    return cExpression(expression, symbols);
+    return cExpression(expression, symbols, compact);
   }
 
   function emitBlock(block, indent) {
@@ -77,6 +83,7 @@ export function generateCFromAst(ast) {
 
   function emitStatement(statement, indent) {
     if (unsupported) return;
+    if (codeLevel === "beginner") emit(`/* ${beginnerComment(statement)} */`, indent);
     if (statement.kind === "VariableDeclaration") {
       const symbol = symbols.get(statement.symbolId);
       const initializer = statement.initializer ? ` = ${generateExpression(statement.initializer)}` : "";
@@ -108,6 +115,24 @@ export function generateCFromAst(ast) {
           return;
         }
         emit(`printf("%s\\n", ${cString(statement.message)});`, indent, statement);
+        return;
+      }
+      if (statement.mode === "formatted") {
+        if (statement.message.includes("\0")) {
+          const provenance = ast.provenance.find((entry) => entry.astNodeId === statement.id);
+          unsupported = failure("M1 output messages cannot contain a null character.", provenance?.origins ?? []);
+          return;
+        }
+        const type = validation.typeTable[statement.value.id];
+        if (!["int", "double", "char"].includes(type)) {
+          const provenance = ast.provenance.find((entry) => entry.astNodeId === statement.id);
+          unsupported = failure("M1 C output supports int, double, and char values.", provenance?.origins ?? []);
+          return;
+        }
+        const valueFormat = type === "int" ? "%d" : type === "double" ? "%.17g" : "%c";
+        const expression = generateExpression(statement.value);
+        const argument = type === "double" ? `(double)(${expression})` : expression;
+        emit(`printf("%s ${valueFormat}\\n", ${cString(statement.message)}, ${argument});`, indent, statement);
         return;
       }
       const type = validation.typeTable[statement.value.id];

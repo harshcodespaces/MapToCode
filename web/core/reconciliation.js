@@ -50,7 +50,9 @@ export function canonicalizeAst(ast) {
     }
     if (node.kind === "Output") return node.mode === "message"
       ? { kind: node.kind, mode: "message", message: node.message }
-      : { kind: node.kind, mode: "value", value: expression(node.value, `${path}/value`) };
+      : node.mode === "formatted"
+        ? { kind: node.kind, mode: "formatted", message: node.message, value: expression(node.value, `${path}/value`) }
+        : { kind: node.kind, mode: "value", value: expression(node.value, `${path}/value`) };
     if (node.kind === "IfStatement") return {
       kind: node.kind,
       condition: expression(node.condition, `${path}/condition`),

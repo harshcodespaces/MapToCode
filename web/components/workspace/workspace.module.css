@@ -1517,6 +1517,15 @@
   box-shadow: 0 4px 14px rgba(220, 38, 38, 0.45);
 }
 
+.nodeDuplicateHandle {
+  background: #6366f1;
+}
+
+.nodeDuplicateHandle:hover {
+  background: #4f46e5;
+  box-shadow: 0 4px 14px rgba(99, 102, 241, 0.45);
+}
+
 .nodeConnectTarget {
   outline: 2.5px dashed #10b981 !important;
   outline-offset: 3px;

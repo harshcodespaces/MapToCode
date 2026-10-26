@@ -73,8 +73,9 @@ export interface AstInputStatement {
 export interface AstOutputStatement {
   id: string;
   kind: "OutputStatement";
-  mode: "message" | "expression" | "variable";
+  mode: "message" | "expression" | "variable" | "formatted";
   value: AstExpression | string;
+  message?: string;
   provenance?: AstProvenance;
 }
 

@@ -85,8 +85,11 @@ export function parsePseudocodeToFlowchart(text, projectId = "parsed-project") {
       } else if (/^OUTPUT\b/i.test(line) || /^PRINT\b/i.test(line)) {
         // OUTPUT "message" or OUTPUT expression
         const raw = line.replace(/^(OUTPUT|PRINT)\s+/i, "").trim();
+        const formattedMatch = raw.match(/^["']([^"']*)["']\s*,\s*(.+)$/);
         const strMatch = raw.match(/^["']([^"']+)["']$/);
-        if (strMatch) {
+        if (formattedMatch) {
+          block.push({ type: "output", mode: "formatted", message: formattedMatch[1], expression: formattedMatch[2].trim() });
+        } else if (strMatch) {
           block.push({
             type: "output",
             mode: "message",
@@ -179,7 +182,9 @@ export function parsePseudocodeToFlowchart(text, projectId = "parsed-project") {
     } else if (item.type === "process") {
       payload = { operation: "assignment", symbolId: `symbol-${item.target}`, expression: item.expression };
     } else if (item.type === "output") {
-      payload = item.mode === "message"
+      payload = item.mode === "formatted"
+        ? { outputId: id, mode: "formatted", message: item.message, expression: item.expression }
+        : item.mode === "message"
         ? { outputId: id, mode: "message", message: item.message }
         : { outputId: id, mode: "expression", expression: item.expression };
     } else {

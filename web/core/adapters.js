@@ -224,7 +224,13 @@ export function adaptSpecificationToAst(specification, { projectId } = {}) {
           diagnostics.push(adapterDiagnostic("SPEC_REFERENCE_INVALID", "semantics", `Output step “${id}” refers to unknown output “${payload.outputId}”.`, "specification", id, revision));
           continue;
         }
-        if (payload.mode === "message") {
+        if (payload.mode === "formatted") {
+          const expression = parseWithDiagnostic(builder, payload.expression, "specification", id, revision, "output", allNames, diagnostics);
+          if (!expression) continue;
+          destination.statements.push(recordStatement(builder, {
+            id: stableAstId("specification", id, "output"), kind: "Output", mode: "formatted", message: payload.message, value: expression,
+          }, id));
+        } else if (payload.mode === "message") {
           destination.statements.push(recordStatement(builder, {
             id: stableAstId("specification", id, "output"), kind: "Output", mode: "message", message: payload.message,
           }, id));
@@ -302,6 +308,9 @@ function normalizeLegacyFlowchart(flowchart) {
     }
     if (node.kind === "output") {
       const outputId = String(payload.outputId || `output-${node.id}`);
+      if (payload.mode === "formatted") return { ...node, payload: {
+        outputId, mode: "formatted", message: String(payload.message ?? ""), expression: String(payload.expression ?? ""),
+      } };
       return payload.mode === "message"
         ? { ...node, payload: { outputId, mode: "message", message: String(payload.message ?? payload.expression ?? "") } }
         : { ...node, payload: { outputId, mode: "expression", expression: String(payload.expression ?? payload.message ?? "") } };
@@ -476,7 +485,13 @@ export function adaptFlowchartToAst(flowchart, { projectId } = {}) {
           id: stableAstId("flowchart", node.id, "assignment"), kind: "Assignment", symbolId: targetSymId || payload.symbolId, expression,
         }, node.id));
       } else if (node.kind === "output") {
-        if (payload.mode === "message") {
+        if (payload.mode === "formatted") {
+          const expression = parseWithDiagnostic(builder, payload.expression, "flowchart", node.id, revision, "output", symbolByName, diagnostics);
+          if (!expression) return stopId;
+          destination.statements.push(recordStatement(builder, {
+            id: stableAstId("flowchart", node.id, "output"), kind: "Output", mode: "formatted", message: payload.message, value: expression,
+          }, node.id));
+        } else if (payload.mode === "message") {
           destination.statements.push(recordStatement(builder, {
             id: stableAstId("flowchart", node.id, "output"), kind: "Output", mode: "message", message: payload.message,
           }, node.id));

@@ -79,11 +79,12 @@ function generateUuid() {
   });
 }
 
-export function createProject({ name = "Untitled algorithm", projectId = generateUuid(), now = new Date().toISOString() } = {}) {
+export function createProject({ name = "Untitled algorithm", codeLevel = "intermediate", projectId = generateUuid(), now = new Date().toISOString() } = {}) {
   return {
     schemaVersion: PROJECT_SCHEMA_VERSION,
     projectId,
     name: String(name).trim().slice(0, 120) || "Untitled algorithm",
+    codeLevel: ["beginner", "intermediate", "professional"].includes(codeLevel) ? codeLevel : "intermediate",
     specification: {
       schemaVersion: PROJECT_SCHEMA_VERSION, revision: 0,
       inputs: [], outputs: [], variables: [], steps: [], constraints: [], examples: [],

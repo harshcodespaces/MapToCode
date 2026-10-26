@@ -1,5 +1,6 @@
 import { validateAstSemantics } from "./ast-validation.js";
 import { createDiagnostic } from "./diagnostics.js";
+import { beginnerComment, normalizeCodeLevel } from "./code-level.js";
 
 export const PYTHON_GENERATOR_VERSION = "1.0.0";
 
@@ -9,26 +10,29 @@ function failure(message, sourceRefs = []) {
   return createDiagnostic({ code: "GEN_AST_UNSUPPORTED", category: "generation", message, sourceRefs });
 }
 
-function pythonExpression(expression, symbols, typeTable, integerDivisionHelper) {
+function pythonExpression(expression, symbols, typeTable, integerDivisionHelper, compact = false) {
   if (expression.kind === "IntegerLiteral" || expression.kind === "FloatingLiteral") return String(expression.value);
   if (expression.kind === "CharacterLiteral") return JSON.stringify(expression.value);
   if (expression.kind === "VariableReference") return symbols.get(expression.symbolId).name;
   if (expression.kind === "UnaryExpression") {
-    if (expression.operator === "!") return `(not ${pythonExpression(expression.operand, symbols, typeTable, integerDivisionHelper)})`;
-    return `(${expression.operator}${pythonExpression(expression.operand, symbols, typeTable, integerDivisionHelper)})`;
+    if (expression.operator === "!") return `(not ${pythonExpression(expression.operand, symbols, typeTable, integerDivisionHelper, compact)})`;
+    return `(${expression.operator}${pythonExpression(expression.operand, symbols, typeTable, integerDivisionHelper, compact)})`;
   }
   if (expression.kind === "BinaryExpression") {
     if (expression.operator === "/" && typeTable[expression.id] === "int") {
-      return `${integerDivisionHelper}(${pythonExpression(expression.left, symbols, typeTable, integerDivisionHelper)}, ${pythonExpression(expression.right, symbols, typeTable, integerDivisionHelper)})`;
+      return `${integerDivisionHelper}(${pythonExpression(expression.left, symbols, typeTable, integerDivisionHelper, compact)}, ${pythonExpression(expression.right, symbols, typeTable, integerDivisionHelper, compact)})`;
     }
     const operators = { "&&": "and", "||": "or" };
     const operator = operators[expression.operator] ?? expression.operator;
-    return `(${pythonExpression(expression.left, symbols, typeTable, integerDivisionHelper)} ${operator} ${pythonExpression(expression.right, symbols, typeTable, integerDivisionHelper)})`;
+    const separator = compact && !["and", "or"].includes(operator) ? operator : ` ${operator} `;
+    return `(${pythonExpression(expression.left, symbols, typeTable, integerDivisionHelper, compact)}${separator}${pythonExpression(expression.right, symbols, typeTable, integerDivisionHelper, compact)})`;
   }
   throw new TypeError(`Unsupported Python expression node: ${expression.kind}`);
 }
 
-export function generatePythonFromAst(ast) {
+export function generatePythonFromAst(ast, options = {}) {
+  const codeLevel = normalizeCodeLevel(options.codeLevel);
+  const compact = codeLevel === "professional";
   const validation = validateAstSemantics(ast);
   if (!validation.valid) return { code: "", sourceMap: [], diagnostics: validation.diagnostics, generatorVersion: PYTHON_GENERATOR_VERSION };
 
@@ -72,7 +76,7 @@ export function generatePythonFromAst(ast) {
     for (const statement of block.statements) {
       if (statement.kind === "VariableDeclaration" && statement.initializer) inspectExpression(statement.initializer);
       else if (statement.kind === "Assignment") inspectExpression(statement.expression);
-      else if (statement.kind === "Output" && statement.mode === "value") inspectExpression(statement.value);
+      else if (statement.kind === "Output" && statement.mode !== "message") inspectExpression(statement.value);
       else if (statement.kind === "IfStatement") {
         inspectExpression(statement.condition);
         inspectBlock(statement.thenBlock);
@@ -108,9 +112,10 @@ export function generatePythonFromAst(ast) {
 
   function emitStatement(statement, indent) {
     if (unsupported) return;
+    if (codeLevel === "beginner") emit(`# ${beginnerComment(statement)}`, indent);
     if (statement.kind === "VariableDeclaration") {
       if (statement.initializer) {
-        emit(`${symbols.get(statement.symbolId).name} = ${pythonExpression(statement.initializer, symbols, validation.typeTable, integerDivisionHelper)}`, indent, statement);
+        emit(`${symbols.get(statement.symbolId).name} = ${pythonExpression(statement.initializer, symbols, validation.typeTable, integerDivisionHelper, compact)}`, indent, statement);
       }
       return;
     }
@@ -128,16 +133,19 @@ export function generatePythonFromAst(ast) {
       return;
     }
     if (statement.kind === "Assignment") {
-      emit(`${symbols.get(statement.symbolId).name} = ${pythonExpression(statement.expression, symbols, validation.typeTable, integerDivisionHelper)}`, indent, statement);
+      emit(`${symbols.get(statement.symbolId).name} = ${pythonExpression(statement.expression, symbols, validation.typeTable, integerDivisionHelper, compact)}`, indent, statement);
       return;
     }
     if (statement.kind === "Output") {
-      const value = statement.mode === "message" ? JSON.stringify(statement.message) : pythonExpression(statement.value, symbols, validation.typeTable, integerDivisionHelper);
-      emit(`print(${value})`, indent, statement);
+      const value = statement.mode === "message" ? JSON.stringify(statement.message) : pythonExpression(statement.value, symbols, validation.typeTable, integerDivisionHelper, compact);
+      const printArgs = statement.mode === "formatted"
+        ? `${JSON.stringify(statement.message)}, ${value}`
+        : value;
+      emit(`print(${printArgs})`, indent, statement);
       return;
     }
     if (statement.kind === "IfStatement") {
-      emit(`if ${pythonExpression(statement.condition, symbols, validation.typeTable, integerDivisionHelper)}:`, indent, statement);
+      emit(`if ${pythonExpression(statement.condition, symbols, validation.typeTable, integerDivisionHelper, compact)}:`, indent, statement);
       emitBlock(statement.thenBlock, indent + 1);
       emit("else:", indent, statement);
       emitBlock(statement.elseBlock, indent + 1);

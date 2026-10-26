@@ -84,6 +84,7 @@ export const astSchema = {
         { type: "object", additionalProperties: false, required: ["id", "kind", "symbolId", "prompt"], properties: { id, kind: { const: "Input" }, symbolId: id, prompt: { type: "string" } } },
         { type: "object", additionalProperties: false, required: ["id", "kind", "mode", "message"], properties: { id, kind: { const: "Output" }, mode: { const: "message" }, message: { type: "string", maxLength: 500 } } },
         { type: "object", additionalProperties: false, required: ["id", "kind", "mode", "value"], properties: { id, kind: { const: "Output" }, mode: { const: "value" }, value: { $ref: "#/$defs/expression" } } },
+        { type: "object", additionalProperties: false, required: ["id", "kind", "mode", "message", "value"], properties: { id, kind: { const: "Output" }, mode: { const: "formatted" }, message: { type: "string", maxLength: 500 }, value: { $ref: "#/$defs/expression" } } },
         { type: "object", additionalProperties: false, required: ["id", "kind", "condition", "thenBlock", "elseBlock"], properties: { id, kind: { const: "IfStatement" }, condition: { $ref: "#/$defs/expression" }, thenBlock: { $ref: "#/$defs/block" }, elseBlock: { $ref: "#/$defs/block" } } },
       ],
     },
@@ -123,6 +124,7 @@ const specificationStepSchema = {
     { type: "object", additionalProperties: false, required: ["id", "kind", "payload"], properties: { id, kind: { const: "output" }, payload: { oneOf: [
       { type: "object", additionalProperties: false, required: ["outputId", "mode", "message"], properties: { outputId: id, mode: { const: "message" }, message: { type: "string", maxLength: 500 } } },
       { type: "object", additionalProperties: false, required: ["outputId", "mode", "expression"], properties: { outputId: id, mode: { const: "expression" }, expression: { type: "string", maxLength: 256 } } },
+      { type: "object", additionalProperties: false, required: ["outputId", "mode", "message", "expression"], properties: { outputId: id, mode: { const: "formatted" }, message: { type: "string", maxLength: 500 }, expression: { type: "string", minLength: 1, maxLength: 256 } } },
     ] } } },
     { type: "object", additionalProperties: false, required: ["id", "kind", "payload"], properties: { id, kind: { const: "conditional" }, payload: { type: "object", additionalProperties: false, required: ["condition", "whenTrue", "whenFalse"], properties: { condition: { type: "string", maxLength: 256 }, whenTrue: { type: "array", items: { $ref: "#/$defs/step" } }, whenFalse: { type: "array", items: { $ref: "#/$defs/step" } } } } } },
   ],
@@ -158,6 +160,7 @@ const initializationPayload = { type: "object", additionalProperties: false, req
 const outputPayload = { oneOf: [
   { type: "object", additionalProperties: false, required: ["outputId", "mode", "message"], properties: { outputId: id, mode: { const: "message" }, message: { type: "string", maxLength: 500 } } },
   { type: "object", additionalProperties: false, required: ["outputId", "mode", "expression"], properties: { outputId: id, mode: { const: "expression" }, expression: { type: "string", maxLength: 256 } } },
+  { type: "object", additionalProperties: false, required: ["outputId", "mode", "message", "expression"], properties: { outputId: id, mode: { const: "formatted" }, message: { type: "string", maxLength: 500 }, expression: { type: "string", minLength: 1, maxLength: 256 } } },
 ] };
 
 export const flowchartSchema = {
@@ -192,6 +195,7 @@ export const projectSchema = {
   required: ["schemaVersion", "projectId", "name", "specification", "flowchart", "decisions", "revisions", "createdAt", "updatedAt"],
   properties: {
     schemaVersion: { const: CONTRACT_VERSION }, projectId: { type: "string", format: "uuid" }, name: { type: "string", minLength: 1, maxLength: 120, pattern: "\\S" },
+    codeLevel: { enum: ["beginner", "intermediate", "professional"] },
     specification: { $ref: "maptocode://specification/1.0.0" }, flowchart: { $ref: "maptocode://flowchart/1.0.0" },
     decisions: { type: "array", items: { type: "object", additionalProperties: false, required: ["findingId", "specificationRevision", "flowchartRevision", "choice"], properties: { findingId: id, specificationRevision: revision, flowchartRevision: revision, choice: { type: "string", minLength: 1 } } } },
     revisions: { type: "object", additionalProperties: false, required: ["semantic", "presentation"], properties: { semantic: revision, presentation: revision } },

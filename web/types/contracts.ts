@@ -116,6 +116,14 @@ export interface ValueOutput {
   value: AstExpression;
 }
 
+export interface FormattedOutput {
+  id: string;
+  kind: "Output";
+  mode: "formatted";
+  message: string;
+  value: AstExpression;
+}
+
 export interface IfStatement {
   id: string;
   kind: "IfStatement";
@@ -124,7 +132,7 @@ export interface IfStatement {
   elseBlock: AstBlock;
 }
 
-export type AstStatement = VariableDeclaration | Assignment | Input | MessageOutput | ValueOutput | IfStatement;
+export type AstStatement = VariableDeclaration | Assignment | Input | MessageOutput | ValueOutput | FormattedOutput | IfStatement;
 
 export interface AstBlock {
   id: string;
@@ -188,6 +196,12 @@ export interface ExpressionOutputStep {
   payload: { outputId: string; mode: "expression"; expression: string };
 }
 
+export interface FormattedOutputStep {
+  id: string;
+  kind: "output";
+  payload: { outputId: string; mode: "formatted"; message: string; expression: string };
+}
+
 export interface ConditionalStep {
   id: string;
   kind: "conditional";
@@ -204,6 +218,7 @@ export type SpecificationStep =
   | InputStep
   | MessageOutputStep
   | ExpressionOutputStep
+  | FormattedOutputStep
   | ConditionalStep;
 
 export interface AlgorithmSpecification {
@@ -264,6 +279,12 @@ export interface ExpressionOutputNode {
   payload: { outputId: string; mode: "expression"; expression: string };
 }
 
+export interface FormattedOutputNode {
+  id: string;
+  kind: "output";
+  payload: { outputId: string; mode: "formatted"; message: string; expression: string };
+}
+
 export interface DecisionNode {
   id: string;
   kind: "decision";
@@ -278,6 +299,7 @@ export type FlowchartNode =
   | InputNode
   | MessageOutputNode
   | ExpressionOutputNode
+  | FormattedOutputNode
   | DecisionNode;
 
 export interface FlowchartEdge {
@@ -322,6 +344,8 @@ export interface ProjectEnvelope {
   schemaVersion: "1.0.0";
   projectId: string;
   name: string;
+  /** Optional for projects saved before code-level choices were introduced. */
+  codeLevel?: "beginner" | "intermediate" | "professional";
   specification: AlgorithmSpecification;
   flowchart: FlowchartGraph;
   decisions: ReconciliationDecision[];

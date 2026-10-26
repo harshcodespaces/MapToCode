@@ -76,6 +76,7 @@ export function formatSpecStep(step: SpecificationStep, spec: AlgorithmSpecifica
     return `Set ${target?.name || "variable"} = ${step.payload.expression || "0"}`;
   }
   if (step.kind === "output") {
+    if (step.payload.mode === "formatted") return `Display "${step.payload.message}" and ${step.payload.expression}`;
     if (step.payload.mode === "message") {
       return `Display message "${step.payload.message || ""}"`;
     }
@@ -365,38 +366,54 @@ export function StepList({ steps, onChange, outputs, depth = 0, styles }: StepLi
                 <select
                   value={step.payload.mode}
                   onChange={(e) => {
-                    const mode = e.target.value as "message" | "expression";
+                    const mode = e.target.value as "message" | "expression" | "formatted";
                     patchStep(step.id, (current): SpecificationStep => {
                       if (current.kind !== "output") return current;
                       if (mode === "message") {
                         return {
                           id: current.id,
                           kind: "output",
-                          payload: { outputId: current.payload.outputId, mode: "message", message: "" },
+                          payload: { outputId: current.payload.outputId, mode: "message", message: current.payload.mode === "formatted" ? current.payload.message : "" },
                         };
                       }
+                      if (mode === "formatted") return {
+                        id: current.id,
+                        kind: "output",
+                        payload: {
+                          outputId: current.payload.outputId,
+                          mode: "formatted",
+                          message: current.payload.mode === "message" || current.payload.mode === "formatted" ? current.payload.message : "Result:",
+                          expression: current.payload.mode === "expression" || current.payload.mode === "formatted" ? current.payload.expression : "",
+                        },
+                      };
                       return {
                         id: current.id,
                         kind: "output",
-                        payload: { outputId: current.payload.outputId, mode: "expression", expression: "" },
+                        payload: { outputId: current.payload.outputId, mode: "expression", expression: current.payload.mode === "formatted" ? current.payload.expression : "" },
                       };
                     });
                   }}
                 >
                   <option value="message">Display Message</option>
                   <option value="expression">Display Variable/Expression</option>
+                  <option value="formatted">Message + Variable/Expression</option>
                 </select>
               </label>
-              <label>
-                {step.payload.mode === "message" ? "Message Text" : "Expression"}
-                <input
-                  value={step.payload.mode === "message" ? step.payload.message : step.payload.expression}
-                  onChange={(e) =>
-                    patchPayload(step, step.payload.mode === "message" ? "message" : "expression", e.target.value)
-                  }
-                  placeholder={step.payload.mode === "message" ? 'e.g. "Even"' : "e.g. n * 2"}
-                />
-              </label>
+              {step.payload.mode === "formatted" ? (
+                <>
+                  <label>Message Text<input value={step.payload.message} onChange={(e) => patchPayload(step, "message", e.target.value)} placeholder="Area:" /></label>
+                  <label>Expression<input value={step.payload.expression} onChange={(e) => patchPayload(step, "expression", e.target.value)} placeholder="area" /></label>
+                </>
+              ) : (
+                <label>
+                  {step.payload.mode === "message" ? "Message Text" : "Expression"}
+                  <input
+                    value={step.payload.mode === "message" ? step.payload.message : step.payload.expression}
+                    onChange={(e) => patchPayload(step, step.payload.mode === "message" ? "message" : "expression", e.target.value)}
+                    placeholder={step.payload.mode === "message" ? 'e.g. "Even"' : "e.g. n * 2"}
+                  />
+                </label>
+              )}
             </div>
           )}
 

@@ -86,6 +86,7 @@ export interface FlowCanvasProps {
   setSelectedEdge?: (id: string | null) => void;
   onDeleteEdge?: (edgeId: string) => void;
   onDeleteNode?: (nodeId: string) => void;
+  onDuplicate?: (node: FlowchartCanvasNode) => void;
   onInsertNodeOnEdge?: (edgeId: string, kind: "input" | "initialization" | "process" | "decision" | "output") => void;
   onConnect?: (from: string, to: string, branch?: "true" | "false") => void;
   snapToGrid?: boolean;
@@ -120,6 +121,7 @@ export default function FlowCanvas({
   setSelectedEdge = () => {},
   onDeleteEdge = () => {},
   onDeleteNode = () => {},
+  onDuplicate = () => {},
   onInsertNodeOnEdge = () => {},
   onConnect = () => {},
   snapToGrid = true,
@@ -645,7 +647,9 @@ export default function FlowCanvas({
                   )}
                   {node.kind === "output" && (
                     <span className={styles.nodeLabelText}>
-                      {node.payload?.mode === "message"
+                      {node.payload?.mode === "formatted"
+                        ? `Print ${node.payload.message || ""} ${node.payload.expression || ""}`
+                        : node.payload?.mode === "message"
                         ? `Print "${node.payload.message || ""}"`
                         : `Print ${node.payload?.expression || ""}`}
                     </span>
@@ -705,6 +709,20 @@ export default function FlowCanvas({
                       </button>
                     )}
                   </>
+                )}
+                {isSelected && !readOnly && !connectingFrom && (
+                  <button
+                    type="button"
+                    className={`${styles.nodeConnectHandle} ${styles.nodeDuplicateHandle}`}
+                    style={{ left: pos.x + 56, top: pos.y + 92 }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onDuplicate(node);
+                    }}
+                    title="Duplicate this block (Ctrl+D)"
+                  >
+                    ⧉ Duplicate
+                  </button>
                 )}
               </React.Fragment>
             );

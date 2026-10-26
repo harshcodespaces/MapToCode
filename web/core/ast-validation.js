@@ -10,7 +10,7 @@ function collectNodes(node, result = []) {
   if (node.kind === "Block") node.statements.forEach((child) => collectNodes(child, result));
   else if (node.kind === "VariableDeclaration" && node.initializer) collectNodes(node.initializer, result);
   else if (node.kind === "Assignment") collectNodes(node.expression, result);
-  else if (node.kind === "Output" && node.mode === "value") collectNodes(node.value, result);
+  else if (node.kind === "Output" && node.mode !== "message") collectNodes(node.value, result);
   else if (node.kind === "IfStatement") {
     collectNodes(node.condition, result);
     collectNodes(node.thenBlock, result);
@@ -234,7 +234,7 @@ export function validateAstSemantics(ast) {
         if (symbol && !currentDeclared.has(symbol.id)) report("SYMBOL_UNDECLARED", "semantics", `“${symbol.name}” needs a declaration before assignment.`, statement);
         else if (symbol) currentInitialized.add(symbol.id);
       } else if (statement.kind === "Output") {
-        if (statement.mode === "value") infer(statement.value, currentInitialized, currentDeclared);
+        if (statement.mode !== "message") infer(statement.value, currentInitialized, currentDeclared);
       } else if (statement.kind === "IfStatement") {
         const conditionType = infer(statement.condition, currentInitialized, currentDeclared);
         if (conditionType !== "bool") report("TYPE_CONDITION_INVALID", "type", "An IfStatement condition must have Boolean type.", statement);

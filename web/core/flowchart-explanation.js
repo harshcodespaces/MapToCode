@@ -32,6 +32,9 @@ function nodeActionEnglish(node) {
     return `Set ${target || "the result"} to ${expr}.`;
   }
   if (kind === "output") {
+    if (payload.mode === "formatted") {
+      return `Display “${payload.message || ""}” followed by the value of ${payload.expression || "expression"}.`;
+    }
     if (payload.mode === "message") {
       return `Display message: "${payload.message || ""}".`;
     }
@@ -70,6 +73,9 @@ function nodePseudocodeLine(node) {
     return `${target || "result"} = ${expr}`;
   }
   if (kind === "output") {
+    if (payload.mode === "formatted") {
+      return `OUTPUT "${payload.message || ""}", ${payload.expression || "value"}`;
+    }
     if (payload.mode === "message") {
       return `OUTPUT "${payload.message || ""}"`;
     }
@@ -336,7 +342,11 @@ export function explainFlowchartToLearner(flowchart) {
     summaryParts.push(`branches based on checking ${conds}`);
   }
   if (outputNodes.length > 0) {
-    const outs = outputNodes.map((o) => (o.payload?.mode === "message" ? `"${o.payload?.message}"` : `value of ${o.payload?.expression}`)).join(" / ");
+    const outs = outputNodes.map((o) => o.payload?.mode === "message"
+      ? `"${o.payload?.message}"`
+      : o.payload?.mode === "formatted"
+        ? `"${o.payload?.message}" followed by ${o.payload?.expression}`
+        : `value of ${o.payload?.expression}`).join(" / ");
     summaryParts.push(`displays ${outs}`);
   }
 

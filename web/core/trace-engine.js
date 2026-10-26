@@ -513,6 +513,9 @@ export function generateAstTrace(ast, inputs = {}, options = {}) {
       let outText = "";
       if (stmt.mode === "message") {
         outText = stmt.message;
+      } else if (stmt.mode === "formatted") {
+        const val = evaluateExpression(stmt.value, currentEnv, symbolsById);
+        outText = `${stmt.message} ${String(val)}`;
       } else {
         const val = evaluateExpression(stmt.value, currentEnv, symbolsById);
         outText = String(val);

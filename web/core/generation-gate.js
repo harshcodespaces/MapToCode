@@ -144,7 +144,7 @@ function generateForProject(project, generator) {
   }
 
   const combinedAst = astWithCombinedProvenance(analysis.specificationCandidate.ast, analysis.flowchartCandidate.ast);
-  const generated = generator(combinedAst);
+  const generated = generator(combinedAst, { codeLevel: project.codeLevel });
   if (generated.diagnostics.length) return { status: "blocked", code: "", sourceMap: [], diagnostics: [...diagnostics, ...generated.diagnostics], reconciliation: analysis.reconciliation };
   return {
     status: "ready",

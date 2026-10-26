@@ -142,6 +142,7 @@ export default function IdeWorkspace(): React.JSX.Element {
   const storeRef = useRef<any>(null);
   const graphHistory = useRef<{ past: FlowchartGraph[]; future: FlowchartGraph[] }>({ past: [], future: [] });
   const copiedFileRef = useRef<ExplorerFile | null>(null);
+  const copiedNodeRef = useRef<FlowchartNode | null>(null);
 
   // Files, Folders & Tabs State (VS Code File Explorer isolated per project)
   const [explorerFiles, setExplorerFiles] = useState<ExplorerFile[]>(() => {
@@ -344,6 +345,7 @@ export default function IdeWorkspace(): React.JSX.Element {
   // Modals state
   const [activeModal, setActiveModal] = useState<"newProject" | "projects" | "samples" | "guide" | "settings" | "traceLogic" | null>(null);
   const [newProjectName, setNewProjectName] = useState<string>("");
+  const [newProjectCodeLevel, setNewProjectCodeLevel] = useState<"beginner" | "intermediate" | "professional">("beginner");
   const [selectedTemplate, setSelectedTemplate] = useState<string>("blank");
   const [projectSearchQuery, setProjectSearchQuery] = useState<string>("");
 
@@ -402,8 +404,9 @@ export default function IdeWorkspace(): React.JSX.Element {
       freshProject = SAMPLE_FACTORIES[selectedTemplate]();
       freshProject.name = name;
       freshProject.projectId = (globalThis.crypto?.randomUUID?.() || `proj-${Date.now()}`);
+      freshProject.codeLevel = newProjectCodeLevel;
     } else {
-      freshProject = createProject({ name }) as unknown as ProjectEnvelope;
+      freshProject = createProject({ name, codeLevel: newProjectCodeLevel }) as unknown as ProjectEnvelope;
     }
 
     // 3. New project is created clean without any folder or file!
@@ -415,6 +418,7 @@ export default function IdeWorkspace(): React.JSX.Element {
     // 4. Switch to the new project and initialize its empty workspace
     changeProject(freshProject);
     setNewProjectName("");
+    setNewProjectCodeLevel("beginner");
     setSelectedTemplate("blank");
     setActiveModal(null);
     setNotice(`🎉 Created new project "${freshProject.name}" (clean workspace)`);
@@ -991,9 +995,10 @@ export default function IdeWorkspace(): React.JSX.Element {
       };
     }
     try {
-      const pyRes = generatePythonFromAst(activeAst);
-      const cRes = generateCFromAst(activeAst);
-      const javaRes = generateJavaFromAst(activeAst);
+      const options = { codeLevel: project.codeLevel };
+      const pyRes = generatePythonFromAst(activeAst, options);
+      const cRes = generateCFromAst(activeAst, options);
+      const javaRes = generateJavaFromAst(activeAst, options);
       return {
         python: pyRes.code || "# Generating Python...",
         c: cRes.code || "// Generating C...",
@@ -1006,7 +1011,7 @@ export default function IdeWorkspace(): React.JSX.Element {
         java: `// Code generation note: ${e?.message || "Incomplete diagram"}`,
       };
     }
-  }, [activeAst]);
+  }, [activeAst, project.codeLevel]);
 
   const pythonCode = generatedCodes.python;
   const activePythonCode = generatedCodes.python;
@@ -2128,13 +2133,10 @@ export default function IdeWorkspace(): React.JSX.Element {
     }
   };
 
-  const duplicateSelectedNode = useCallback(() => {
-    if (!selectedNode) return;
-    const node = project.flowchart.nodes.find((n) => n.id === selectedNode);
-    if (!node || node.kind === "start") return;
+  const duplicateNode = useCallback((node: FlowchartNode) => {
     const currentPos = project.flowchart.layout.positions[node.id] || { x: 380, y: 150 };
     const newPos = { x: currentPos.x + 40, y: currentPos.y + 40 };
-    const newId = `${node.kind}-${Date.now().toString(36)}`;
+    const newId = `${node.kind}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
     let newPayload = structuredClone(node.payload) as any;
     if (node.kind === "input") {
       const existingNames = new Set(
@@ -2173,7 +2175,31 @@ export default function IdeWorkspace(): React.JSX.Element {
     setSelectedNode(newId);
     setNotice(`📑 Duplicated block "${node.kind}"`);
     setTimeout(() => setNotice(""), 2500);
-  }, [selectedNode, project, applyGraph]);
+  }, [project, applyGraph]);
+
+  const duplicateSelectedNode = useCallback(() => {
+    const node = project.flowchart.nodes.find((item) => item.id === selectedNode);
+    if (node) duplicateNode(node);
+  }, [selectedNode, project.flowchart.nodes, duplicateNode]);
+
+  const copySelectedNode = useCallback(() => {
+    const node = project.flowchart.nodes.find((item) => item.id === selectedNode);
+    if (!node) return false;
+    copiedNodeRef.current = structuredClone(node);
+    setNotice(`📋 Copied ${node.kind} block. Press Ctrl+V to paste.`);
+    setTimeout(() => setNotice(""), 2500);
+    return true;
+  }, [selectedNode, project.flowchart.nodes]);
+
+  const pasteCopiedNode = useCallback(() => {
+    if (!copiedNodeRef.current) return false;
+    duplicateNode(copiedNodeRef.current);
+    return true;
+  }, [duplicateNode]);
+
+  const cutSelectedNode = useCallback(() => {
+    if (copySelectedNode()) deleteNode(selectedNode);
+  }, [copySelectedNode, deleteNode, selectedNode]);
 
   // Full Global IDE Keyboard Shortcuts (VS Code-style)
   useEffect(() => {
@@ -2374,10 +2400,15 @@ export default function IdeWorkspace(): React.JSX.Element {
           }
         }
 
-        // Ctrl+C: Copy selected file (does NOT trigger save — use Ctrl+S to save)
+        // Ctrl+C: Copy selected block or file (does NOT trigger save — use Ctrl+S to save)
         if (key === "c") {
           const selectedText = window.getSelection()?.toString();
           if (!selectedText) {
+            if (selectedNode) {
+              e.preventDefault();
+              copySelectedNode();
+              return;
+            }
             if (selectedFileId) {
               e.preventDefault();
               handleCopyFile();
@@ -2388,8 +2419,20 @@ export default function IdeWorkspace(): React.JSX.Element {
           // If text is selected, let browser copy it normally (don't intercept)
         }
 
-        // Ctrl+V: Paste file
+        // Ctrl+X: Cut selected block
+        if (key === "x" && selectedNode) {
+          e.preventDefault();
+          cutSelectedNode();
+          return;
+        }
+
+        // Ctrl+V: Paste copied block or file
         if (key === "v") {
+          if (copiedNodeRef.current) {
+            e.preventDefault();
+            pasteCopiedNode();
+            return;
+          }
           if (copiedFileRef.current) {
             e.preventDefault();
             handlePasteFile();
@@ -2498,6 +2541,9 @@ export default function IdeWorkspace(): React.JSX.Element {
     handlePasteFile,
     handleRenameSelected,
     duplicateSelectedNode,
+    copySelectedNode,
+    cutSelectedNode,
+    pasteCopiedNode,
     undoGraph,
     redoGraph,
     runProgram,
@@ -2860,47 +2906,67 @@ export default function IdeWorkspace(): React.JSX.Element {
                     applyGraph((cur: FlowchartGraph) => ({
                       ...cur,
                       nodes: cur.nodes.map((n) =>
-                        n.id === selectedNodeObj.id
-                          ? val === "message"
-                            ? { ...n, payload: { outputId: (n.payload as any)?.outputId || `output-${n.id}`, mode: val, message: (n.payload as any)?.message || (n.payload as any)?.expression || "" } }
-                            : { ...n, payload: { outputId: (n.payload as any)?.outputId || `output-${n.id}`, mode: val, expression: (n.payload as any)?.expression || (n.payload as any)?.message || "" } }
-                          : n
+                        n.id !== selectedNodeObj.id ? n : (() => {
+                          const previous = n.payload as any;
+                          const outputId = previous?.outputId || `output-${n.id}`;
+                          if (val === "message") return { ...n, payload: { outputId, mode: val, message: previous?.message || previous?.expression || "" } };
+                          if (val === "expression") return { ...n, payload: { outputId, mode: val, expression: previous?.expression || previous?.message || "" } };
+                          return { ...n, payload: {
+                            outputId, mode: "formatted",
+                            message: previous?.message || "Result:",
+                            expression: previous?.mode === "expression" ? previous.expression : previous?.expression || "",
+                          } };
+                        })()
                       ),
                     }));
                   }}
                 >
                   <option value="message">Fixed Message</option>
                   <option value="expression">Variable / Expression</option>
+                  <option value="formatted">Message + Variable / Expression</option>
                 </select>
               </label>
-              <label className={styles.inspectorField}>
-                <span className={styles.inspectorLabel}>Output Value:</span>
-                <input
-                  className={styles.formInput}
-                  value={
-                    (selectedNodeObj.payload as any)?.mode === "expression"
+              {(selectedNodeObj.payload as any)?.mode === "formatted" ? (
+                <>
+                  <label className={styles.inspectorField}>
+                    <span className={styles.inspectorLabel}>Fixed Message:</span>
+                    <input className={styles.formInput} value={(selectedNodeObj.payload as any)?.message || ""} placeholder="Area:"
+                      onChange={(e) => {
+                        const message = e.target.value;
+                        applyGraph((cur: FlowchartGraph) => ({ ...cur, nodes: cur.nodes.map((n) => n.id === selectedNodeObj.id
+                          ? { ...n, payload: { ...(n.payload as any), message } } : n) }));
+                      }} />
+                  </label>
+                  <label className={styles.inspectorField}>
+                    <span className={styles.inspectorLabel}>Variable / Expression:</span>
+                    <input className={styles.formInput} value={(selectedNodeObj.payload as any)?.expression || ""} placeholder="area"
+                      onChange={(e) => {
+                        const expression = e.target.value;
+                        applyGraph((cur: FlowchartGraph) => ({ ...cur, nodes: cur.nodes.map((n) => n.id === selectedNodeObj.id
+                          ? { ...n, payload: { ...(n.payload as any), expression } } : n) }));
+                      }} />
+                  </label>
+                </>
+              ) : (
+                <label className={styles.inspectorField}>
+                  <span className={styles.inspectorLabel}>Output Value:</span>
+                  <input className={styles.formInput}
+                    value={(selectedNodeObj.payload as any)?.mode === "expression"
                       ? (selectedNodeObj.payload as any)?.expression || ""
-                      : (selectedNodeObj.payload as any)?.message || ""
-                  }
-                  placeholder="Even"
-                  onChange={(e) => {
-                    const val = e.target.value;
-                    applyGraph((cur: FlowchartGraph) => ({
-                      ...cur,
-                      nodes: cur.nodes.map((n) =>
+                      : (selectedNodeObj.payload as any)?.message || ""}
+                    placeholder={(selectedNodeObj.payload as any)?.mode === "expression" ? "area" : "Calculation complete"}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      applyGraph((cur: FlowchartGraph) => ({ ...cur, nodes: cur.nodes.map((n) =>
                         n.id === selectedNodeObj.id
-                          ? {
-                              ...n,
-                              payload: (n.payload as any)?.mode === "message"
-                                ? { outputId: (n.payload as any)?.outputId || `output-${n.id}`, mode: "message", message: val }
-                                : { outputId: (n.payload as any)?.outputId || `output-${n.id}`, mode: "expression", expression: val },
-                            }
+                          ? (n.payload as any)?.mode === "message"
+                            ? { ...n, payload: { ...(n.payload as any), message: val } }
+                            : { ...n, payload: { ...(n.payload as any), expression: val } }
                           : n
-                      ),
-                    }));
-                  }}
-                />
-              </label>
+                      ) }));
+                    }} />
+                </label>
+              )}
             </>
           )}
 
@@ -3167,6 +3233,9 @@ export default function IdeWorkspace(): React.JSX.Element {
                   </svg>
                   <span>{displayFileName}</span>
                 </div>
+                <span className={styles.codeLevelBadge} title="Code learning level selected when this project was created">
+                  {(project.codeLevel || "intermediate").replace(/^./, (letter) => letter.toUpperCase())}
+                </span>
 
                 {/* Prominent Action Buttons (Copy & Download) */}
                 <div className={styles.codeGenActions}>
@@ -3309,6 +3378,7 @@ export default function IdeWorkspace(): React.JSX.Element {
                   className={styles.dropdownItem}
                   onClick={() => {
                     setNewProjectName("");
+                    setNewProjectCodeLevel("beginner");
                     setActiveModal("newProject");
                     setActiveMenu(null);
                   }}
@@ -4940,6 +5010,7 @@ export default function IdeWorkspace(): React.JSX.Element {
                     onDeleteEdge={removeEdge}
                     onDeleteNode={deleteNode}
                     onConnect={addEdge}
+                    onDuplicate={(node) => duplicateNode(node as FlowchartNode)}
                     snapToGrid={snapToGrid}
                     showGrid={showGrid}
                     canvasTheme={canvasTheme}
@@ -5941,6 +6012,44 @@ export default function IdeWorkspace(): React.JSX.Element {
 
                 <div style={{ display: "flex", flexDirection: "column", gap: "6px", marginTop: "8px" }}>
                   <label style={{ fontSize: "12px", fontWeight: 600, color: "#9da3af" }}>
+                    Code Learning Level
+                  </label>
+                  <div className={styles.codeLevelGrid} role="radiogroup" aria-label="Code learning level">
+                    <button
+                      type="button"
+                      role="radio"
+                      aria-checked={newProjectCodeLevel === "beginner"}
+                      className={`${styles.codeLevelCard} ${newProjectCodeLevel === "beginner" ? styles.codeLevelCardSelected : ""}`}
+                      onClick={() => setNewProjectCodeLevel("beginner")}
+                    >
+                      <strong>Beginner</strong>
+                      <span>Extra comments explain each step.</span>
+                    </button>
+                    <button
+                      type="button"
+                      role="radio"
+                      aria-checked={newProjectCodeLevel === "intermediate"}
+                      className={`${styles.codeLevelCard} ${newProjectCodeLevel === "intermediate" ? styles.codeLevelCardSelected : ""}`}
+                      onClick={() => setNewProjectCodeLevel("intermediate")}
+                    >
+                      <strong>Intermediate</strong>
+                      <span>Clean, standard code with familiar formatting.</span>
+                    </button>
+                    <button
+                      type="button"
+                      role="radio"
+                      aria-checked={newProjectCodeLevel === "professional"}
+                      className={`${styles.codeLevelCard} ${newProjectCodeLevel === "professional" ? styles.codeLevelCardSelected : ""}`}
+                      onClick={() => setNewProjectCodeLevel("professional")}
+                    >
+                      <strong>Professional</strong>
+                      <span>Compact code with no teaching comments.</span>
+                    </button>
+                  </div>
+                </div>
+
+                <div style={{ display: "flex", flexDirection: "column", gap: "6px", marginTop: "8px" }}>
+                  <label style={{ fontSize: "12px", fontWeight: 600, color: "#9da3af" }}>
                     Choose a Starting Point or Template
                   </label>
                   <div className={styles.templateGrid}>
@@ -6042,6 +6151,7 @@ export default function IdeWorkspace(): React.JSX.Element {
                   style={{ fontSize: "11px", padding: "4px 9px" }}
                   onClick={() => {
                     setNewProjectName("");
+                    setNewProjectCodeLevel("beginner");
                     setActiveModal("newProject");
                   }}
                 >
@@ -6086,6 +6196,7 @@ export default function IdeWorkspace(): React.JSX.Element {
                       style={{ marginTop: "12px" }}
                       onClick={() => {
                         setNewProjectName("");
+                        setNewProjectCodeLevel("beginner");
                         setActiveModal("newProject");
                       }}
                     >
