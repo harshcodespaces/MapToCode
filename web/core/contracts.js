@@ -154,6 +154,7 @@ const processPayload = { oneOf: [
   { type: "object", additionalProperties: false, required: ["operation", "symbolId", "name", "type"], properties: { operation: { const: "declaration" }, symbolId: id, name: { type: "string", maxLength: 64 }, type: { enum: ["int", "double", "char"] }, initializer: { type: "string", maxLength: 256 } } },
   { type: "object", additionalProperties: false, required: ["operation", "symbolId", "expression"], properties: { operation: { const: "assignment" }, symbolId: id, expression: { type: "string", maxLength: 256 } } },
 ] };
+const initializationPayload = { type: "object", additionalProperties: false, required: ["symbolId", "name", "type", "initializer"], properties: { symbolId: id, name: { type: "string", maxLength: 64 }, type: { enum: ["int", "double", "char"] }, initializer: { type: "string", minLength: 1, maxLength: 256 } } };
 const outputPayload = { oneOf: [
   { type: "object", additionalProperties: false, required: ["outputId", "mode", "message"], properties: { outputId: id, mode: { const: "message" }, message: { type: "string", maxLength: 500 } } },
   { type: "object", additionalProperties: false, required: ["outputId", "mode", "expression"], properties: { outputId: id, mode: { const: "expression" }, expression: { type: "string", maxLength: 256 } } },
@@ -175,6 +176,7 @@ export const flowchartSchema = {
       graphNode("start", emptyPayload),
       graphNode("end", emptyPayload),
       graphNode("process", processPayload),
+      graphNode("initialization", initializationPayload),
       graphNode("input", { type: "object", additionalProperties: false, required: ["symbolId", "name", "type", "prompt"], properties: { symbolId: id, name: { type: "string", maxLength: 64 }, type: { enum: ["int", "double", "char"] }, prompt: { type: "string", maxLength: 200 } } }),
       graphNode("output", outputPayload),
       graphNode("decision", { type: "object", additionalProperties: false, required: ["condition"], properties: { condition: { type: "string", maxLength: 256 } } }),

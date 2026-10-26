@@ -284,10 +284,10 @@ function normalizeLegacyFlowchart(flowchart) {
         prompt: String(payload.prompt || `Enter ${name}: `),
       } };
     }
-    if (node.kind === "process" && payload.operation === "declaration") {
+    if ((node.kind === "process" && payload.operation === "declaration") || node.kind === "initialization") {
       const name = String(payload.name || "result");
-      return { ...node, payload: {
-        operation: "declaration", symbolId: payload.symbolId || `symbol-${name}`, name,
+      return { ...node, kind: "initialization", payload: {
+        symbolId: payload.symbolId || `symbol-${name}`, name,
         type: ["int", "double", "char"].includes(payload.type) ? payload.type : "int",
         ...(payload.initializer ? { initializer: String(payload.initializer) } : {}),
       } };
@@ -320,6 +320,33 @@ function normalizeLegacyFlowchart(flowchart) {
   };
 }
 
+function inferFlowchartExpressionType(source, symbolByName, symbolById) {
+  try {
+    const expression = parseExpression(source);
+    function infer(node) {
+      if (node.kind === "IntegerLiteral") return "int";
+      if (node.kind === "FloatingLiteral") return "double";
+      if (node.kind === "CharacterLiteral") return "char";
+      if (node.kind === "VariableReference") {
+        const symbolId = symbolByName.get(node.symbolId);
+        return symbolById.get(symbolId)?.type || "int";
+      }
+      if (node.kind === "UnaryExpression") return infer(node.operand);
+      if (node.kind === "BinaryExpression") {
+        const left = infer(node.left);
+        const right = infer(node.right);
+        if (["<", "<=", ">", ">=", "==", "!=", "&&", "||"].includes(node.operator)) return "bool";
+        if (left === "double" || right === "double") return "double";
+        if (left === "char" || right === "char") return "char";
+      }
+      return "int";
+    }
+    return infer(expression);
+  } catch {
+    return "int";
+  }
+}
+
 function nearestJoin(trueTarget, falseTarget, outgoing, postDominators) {
   const common = [...postDominators(trueTarget)].filter((id) => postDominators(falseTarget).has(id));
   function reaches(from, target, seen = new Set()) {
@@ -348,15 +375,18 @@ export function adaptFlowchartToAst(flowchart, { projectId } = {}) {
       const symId = node.payload?.symbolId || `symbol-${node.payload?.name || node.id}`;
       addSymbol(symbols, symbolById, symbolByName, { id: symId, name: node.payload?.name, type: node.payload?.type || "int" }, "flowchart", revision, diagnostics, node.id);
     }
-    if (node.kind === "process" && node.payload?.operation === "declaration") {
+    if (node.kind === "initialization") {
       const symId = node.payload?.symbolId || `symbol-${node.payload?.name || node.id}`;
       addSymbol(symbols, symbolById, symbolByName, { id: symId, name: node.payload?.name, type: node.payload?.type || "int" }, "flowchart", revision, diagnostics, node.id);
     }
-    if (node.kind === "process" && node.payload?.operation !== "declaration") {
+  }
+  for (const node of flowchart.nodes) {
+    if (node.kind === "process") {
       const assignment = flowchartAssignment(node.payload);
       if (assignment.target && !symbolByName.has(assignment.target)) {
         const symId = assignment.embeddedTarget ? `symbol-${assignment.target}` : node.payload?.symbolId || `symbol-${assignment.target}`;
-        addSymbol(symbols, symbolById, symbolByName, { id: symId, name: assignment.target, type: node.payload?.type || "int" }, "flowchart", revision, diagnostics, node.id);
+        const type = inferFlowchartExpressionType(assignment.expression, symbolByName, symbolById);
+        addSymbol(symbols, symbolById, symbolByName, { id: symId, name: assignment.target, type }, "flowchart", revision, diagnostics, node.id);
       }
     }
   }
@@ -398,7 +428,7 @@ export function adaptFlowchartToAst(flowchart, { projectId } = {}) {
   }
   const inputSymbolIds = new Set(flowchart.nodes.filter((item) => item.kind === "input").map((item) => item.payload?.symbolId || `symbol-${item.payload?.name || item.id}`));
   const declaredProcessTargets = new Set();
-  for (const node of flowchart.nodes.filter((item) => item.kind === "process" && item.payload?.operation !== "declaration")) {
+  for (const node of flowchart.nodes.filter((item) => item.kind === "process")) {
     const assignment = flowchartAssignment(node.payload);
     const symId = symbolByName.get(assignment.target);
     if (symId && !inputSymbolIds.has(symId) && !declaredProcessTargets.has(symId)) {
@@ -428,7 +458,7 @@ export function adaptFlowchartToAst(flowchart, { projectId } = {}) {
         destination.statements.push(recordStatement(builder, {
           id: stableAstId("flowchart", node.id, "input"), kind: "Input", symbolId: symId, prompt: payload?.prompt || "",
         }, node.id, "input-node-to-ast-input"));
-      } else if (node.kind === "process" && payload.operation === "declaration") {
+      } else if (node.kind === "initialization") {
         const symId = payload?.symbolId || `symbol-${payload?.name || node.id}`;
         const initializer = payload.initializer
           ? parseWithDiagnostic(builder, payload.initializer, "flowchart", node.id, revision, "initializer", symbolByName, diagnostics)

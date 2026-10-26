@@ -229,11 +229,10 @@ export interface EndNode {
   payload: Record<string, never>;
 }
 
-export interface DeclarationProcessNode {
+export interface InitializationNode {
   id: string;
-  kind: "process";
+  kind: "initialization";
   payload: {
-    operation: "declaration";
     symbolId: string;
     name: string;
     type: ScalarType;
@@ -274,7 +273,7 @@ export interface DecisionNode {
 export type FlowchartNode =
   | StartNode
   | EndNode
-  | DeclarationProcessNode
+  | InitializationNode
   | AssignmentProcessNode
   | InputNode
   | MessageOutputNode

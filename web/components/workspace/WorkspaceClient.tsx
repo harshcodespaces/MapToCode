@@ -63,7 +63,7 @@ const uid = (): string =>
   globalThis.crypto?.randomUUID?.() || `id-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`;
 const initialPosition = (index: number) => ({ x: 370, y: 28 + index * 120 });
 
-const getNextVariableName = (kind: "input" | "process", existingNodes: FlowchartNode[] = []): string => {
+const getNextVariableName = (kind: "input" | "process" | "initialization", existingNodes: FlowchartNode[] = []): string => {
   const usedNames = new Set<string>();
   existingNodes.forEach((n) => {
     const payload = n.payload as any;
@@ -71,6 +71,7 @@ const getNextVariableName = (kind: "input" | "process", existingNodes: Flowchart
     if (n.kind === "process" && payload?.operation === "declaration" && payload?.name) {
       usedNames.add(String(payload.name).trim().toLowerCase());
     }
+    if (n.kind === "initialization" && payload?.name) usedNames.add(String(payload.name).trim().toLowerCase());
   });
 
   const inputCandidates = ["n", "x", "y", "a", "b", "c", "num", "val", "count"];
@@ -151,6 +152,11 @@ function renderFlowchartPreview(flowchart: FlowchartGraph | undefined, cssStyles
               {(node.payload as any).operation === "declaration"
                 ? `${(node.payload as any).name || "result"} = ${(node.payload as any).initializer || 0}`
                 : (node.payload as any).expression || "Calculate"}
+            </div>
+          )}
+          {node.kind === "initialization" && (
+            <div className={cssStyles.miniNodeInitialization}>
+              {(node.payload as any).name || "value"} = {(node.payload as any).initializer || 0}
             </div>
           )}
           {node.kind === "decision" && (
@@ -795,16 +801,17 @@ export default function M1WorkspaceClient(): React.JSX.Element {
     .filter(
       (n) =>
         (n.kind === "input" && (n.payload as any)?.name) ||
+        (n.kind === "initialization" && (n.payload as any)?.name) ||
         (n.kind === "process" && (n.payload as any)?.operation === "declaration" && (n.payload as any)?.name)
     )
     .map((n) => ({
       symbolId: (n.payload as any).symbolId || `symbol-${n.id}`,
       name: (n.payload as any).name,
       type: (n.payload as any).type || "int",
-      source: n.kind === "input" ? "Input variable" : "Declared variable",
+      source: n.kind === "input" ? "Input variable" : "Initialized variable",
     }));
 
-  const addNode = (kind: "start" | "end" | "input" | "process" | "decision" | "output") => {
+  const addNode = (kind: "start" | "end" | "input" | "initialization" | "process" | "decision" | "output") => {
     if (!graph) return;
     if (kind === "start" && graph.nodes.some((n) => n.kind === "start")) {
       setError("A flowchart can only have one Start block.");
@@ -813,11 +820,13 @@ export default function M1WorkspaceClient(): React.JSX.Element {
     const id = uid();
     const inputVar = getNextVariableName("input", graph.nodes);
     const processVar = getNextVariableName("process", graph.nodes);
+    const initialVar = getNextVariableName("initialization", graph.nodes);
     const payloads: Record<string, any> = {
       start: {},
       end: {},
       input: { symbolId: `symbol-${id}`, name: inputVar, type: "int", prompt: `Enter ${inputVar}: ` },
-      process: { operation: "declaration", symbolId: `symbol-${id}`, name: processVar, type: "int", initializer: "0" },
+      initialization: { symbolId: `symbol-${id}`, name: initialVar, type: "int", initializer: "0" },
+      process: { operation: "assignment", symbolId: `symbol-${processVar}`, expression: "0" },
       decision: { condition: `${inputVar} % 2 == 0` },
       output: { outputId: `output-${id}`, mode: "message", message: "Result" },
     };
@@ -1041,7 +1050,7 @@ export default function M1WorkspaceClient(): React.JSX.Element {
     setNotice(`Duplicated ${target.kind.toUpperCase()} block.`);
   };
 
-  const insertNodeOnEdge = (edgeId: string, kind: "input" | "process" | "decision" | "output") => {
+  const insertNodeOnEdge = (edgeId: string, kind: "input" | "initialization" | "process" | "decision" | "output") => {
     if (!graph) return;
     const edge = graph.edges.find((e) => e.id === edgeId);
     if (!edge) return;
@@ -1052,9 +1061,11 @@ export default function M1WorkspaceClient(): React.JSX.Element {
     const newId = uid();
     const inputVar = getNextVariableName("input", graph.nodes);
     const processVar = getNextVariableName("process", graph.nodes);
+    const initialVar = getNextVariableName("initialization", graph.nodes);
     const payloads: Record<string, any> = {
       input: { symbolId: `symbol-${newId}`, name: inputVar, type: "int", prompt: `Enter ${inputVar}: ` },
-      process: { operation: "declaration", symbolId: `symbol-${newId}`, name: processVar, type: "int", initializer: "0" },
+      initialization: { symbolId: `symbol-${newId}`, name: initialVar, type: "int", initializer: "0" },
+      process: { operation: "assignment", symbolId: `symbol-${processVar}`, expression: "0" },
       decision: { condition: `${inputVar} % 2 == 0` },
       output: { outputId: `output-${newId}`, mode: "message", message: "Result" },
     };
@@ -1223,7 +1234,8 @@ export default function M1WorkspaceClient(): React.JSX.Element {
       else if (n.kind === "input") label = n.payload?.prompt ? n.payload.prompt.replace(/: ?$/, "") : `Read ${n.payload?.name || "n"}`;
       else if (n.kind === "decision") label = n.payload?.condition || "Decision";
       else if (n.kind === "output") label = n.payload?.mode === "message" ? `Print "${n.payload?.message || ""}"` : `Print ${n.payload?.expression || ""}`;
-      else if (n.kind === "process") label = n.payload?.operation === "declaration" ? `${n.payload.name} = ${n.payload.initializer || 0}` : n.payload?.expression || "Process";
+      else if (n.kind === "initialization") label = `${n.payload?.name} = ${n.payload?.initializer || 0}`;
+      else if (n.kind === "process") label = n.payload?.expression || "Process";
 
       label = label.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 
@@ -2273,6 +2285,15 @@ export default function M1WorkspaceClient(): React.JSX.Element {
                   <button
                     type="button"
                     className={`${styles.paletteItem} ${styles.paletteProcess}`}
+                    onClick={() => addNode("initialization")}
+                    title="Add Initialization block"
+                  >
+                    <div className={styles.shapeInitialization}>Initialize</div>
+                  </button>
+
+                  <button
+                    type="button"
+                    className={`${styles.paletteItem} ${styles.paletteProcess}`}
                     onClick={() => addNode("process")}
                     title="Add Process block"
                   >
@@ -2519,6 +2540,31 @@ export default function M1WorkspaceClient(): React.JSX.Element {
                             }))
                           }
                         />
+                      </label>
+                    </>
+                  )}
+
+                  {selected.kind === "initialization" && (
+                    <>
+                      <label className={styles.inspectorField}>
+                        Identifier:
+                        <input value={(selected.payload as any).name || ""} placeholder="pi"
+                          onChange={(e) => applyGraph((curr: FlowchartGraph) => ({ ...curr, nodes: curr.nodes.map((n) => n.id === selected.id
+                            ? { ...n, payload: { ...(n.payload as any), name: e.target.value, symbolId: `symbol-${e.target.value || n.id}` } } : n) }))} />
+                      </label>
+                      <label className={styles.inspectorField}>
+                        Data type:
+                        <select value={(selected.payload as any).type || "int"}
+                          onChange={(e) => applyGraph((curr: FlowchartGraph) => ({ ...curr, nodes: curr.nodes.map((n) => n.id === selected.id
+                            ? { ...n, payload: { ...(n.payload as any), type: e.target.value as ScalarType } } : n) }))}>
+                          <option value="int">int</option><option value="double">double</option><option value="char">char</option>
+                        </select>
+                      </label>
+                      <label className={styles.inspectorField}>
+                        Starting value:
+                        <input value={(selected.payload as any).initializer || ""} placeholder="3.14159"
+                          onChange={(e) => applyGraph((curr: FlowchartGraph) => ({ ...curr, nodes: curr.nodes.map((n) => n.id === selected.id
+                            ? { ...n, payload: { ...(n.payload as any), initializer: e.target.value } } : n) }))} />
                       </label>
                     </>
                   )}

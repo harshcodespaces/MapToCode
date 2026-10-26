@@ -84,7 +84,7 @@ export function deriveSpecificationFromFlowchart(flowchart, baseSpecification = 
 
   // Collect declared process variables
   for (const node of flowchart.nodes) {
-    if (node.kind === "process" && node.payload?.operation === "declaration") {
+    if (node.kind === "initialization") {
       const name = (node.payload?.name || "res").trim();
       if (!seenVarNames.has(name) && !seenInputNames.has(name)) {
         seenVarNames.add(name);
@@ -143,7 +143,7 @@ export function deriveSpecificationFromFlowchart(flowchart, baseSpecification = 
             prompt: payload.prompt || "",
           },
         });
-      } else if (node.kind === "process" && payload.operation === "declaration") {
+      } else if (node.kind === "initialization") {
         const name = (payload.name || "res").trim();
         const symbolId = symbolMap.get(name) || symbolMap.get(payload.symbolId) || `var-${name}`;
         steps.push({

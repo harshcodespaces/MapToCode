@@ -17,6 +17,9 @@ function nodeActionEnglish(node) {
     const prompt = payload.prompt ? ` with prompt "${payload.prompt}"` : "";
     return `Ask the user to enter ${name}${type}${prompt}.`;
   }
+  if (kind === "initialization") {
+    return `Initialize ${payload.name || "variable"} as ${payload.type || "int"} with the value ${payload.initializer || "0"}.`;
+  }
   if (kind === "process") {
     if (payload.operation === "declaration") {
       const name = payload.name || "result";
@@ -24,8 +27,9 @@ function nodeActionEnglish(node) {
       const init = payload.initializer !== undefined ? ` initialized to ${payload.initializer}` : "";
       return `Declare variable ${name}${type}${init}.`;
     }
-    const expr = payload.expression || payload.name || "a calculation";
-    return `Calculate or update: ${expr}.`;
+    const target = payload.name || payload.target || String(payload.symbolId || "").replace(/^symbol-/, "");
+    const expr = payload.expression || "a calculation";
+    return `Set ${target || "the result"} to ${expr}.`;
   }
   if (kind === "output") {
     if (payload.mode === "message") {
@@ -49,14 +53,21 @@ function nodePseudocodeLine(node) {
     const prompt = payload.prompt ? ` PROMPT "${payload.prompt}"` : "";
     return `INPUT ${name}${prompt}`;
   }
+  if (kind === "initialization") {
+    return `DECLARE ${payload.name || "variable"}: ${payload.type || "int"} = ${payload.initializer || "0"}`;
+  }
   if (kind === "process") {
     if (payload.operation === "declaration") {
       const name = payload.name || "result";
       const init = payload.initializer !== undefined ? payload.initializer : "0";
-      return `${name} ← ${init}`;
+      return `DECLARE ${name}: ${payload.type || "int"} = ${init}`;
     }
-    const expr = payload.expression || payload.name || "0";
-    return String(expr).replace(/\s*=\s*/, " ← ");
+    const expr = String(payload.expression || "0").trim();
+    const combined = expr.match(/^(.+?)\s*(?:←|<-)\s*([A-Za-z_][A-Za-z0-9_]*)$/)
+      || expr.match(/^(.+?)\s*=\s*([A-Za-z_][A-Za-z0-9_]*)$/);
+    if (combined) return `${combined[2]} = ${combined[1].trim()}`;
+    const target = payload.name || payload.target || String(payload.symbolId || "").replace(/^symbol-/, "");
+    return `${target || "result"} = ${expr}`;
   }
   if (kind === "output") {
     if (payload.mode === "message") {
@@ -88,6 +99,7 @@ export function explainFlowchartToLearner(flowchart) {
   const startNode = nodes.find((n) => n.kind === "start");
   const endNode = nodes.find((n) => n.kind === "end");
   const inputNodes = nodes.filter((n) => n.kind === "input");
+  const initializationNodes = nodes.filter((n) => n.kind === "initialization");
   const decisionNodes = nodes.filter((n) => n.kind === "decision");
   const processNodes = nodes.filter((n) => n.kind === "process");
   const outputNodes = nodes.filter((n) => n.kind === "output");
@@ -285,6 +297,13 @@ export function explainFlowchartToLearner(flowchart) {
     });
   }
 
+  if (initializationNodes.length > 0) {
+    concepts.push({
+      term: "Initialization (Double Rectangle)",
+      description: "Creates a variable and gives it a starting value before later calculations use it.",
+    });
+  }
+
   if (processNodes.length > 0) {
     concepts.push({
       term: "Process (Rectangle)",
@@ -307,6 +326,10 @@ export function explainFlowchartToLearner(flowchart) {
   }
   if (processNodes.length > 0) {
     summaryParts.push(`computes variable assignments`);
+  }
+  if (initializationNodes.length > 0) {
+    const initialized = initializationNodes.map((node) => `${node.payload?.name || "variable"} = ${node.payload?.initializer || "0"}`).join(", ");
+    summaryParts.push(`initializes ${initialized}`);
   }
   if (decisionNodes.length > 0) {
     const conds = decisionNodes.map((d) => `"${d.payload?.condition || "condition"}"`).join(" and ");

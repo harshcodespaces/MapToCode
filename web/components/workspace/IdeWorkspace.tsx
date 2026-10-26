@@ -179,6 +179,7 @@ export default function IdeWorkspace(): React.JSX.Element {
   const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null);
   const [selectedFileId, setSelectedFileId] = useState<string | null>(null);
   const [newItemName, setNewItemName] = useState<string>("");
+  const [itemError, setItemError] = useState<{ title: string; message: string } | null>(null);
 
   const [activeActivity, setActiveActivity] = useState<"explorer" | "search" | "git" | "debug">("explorer");
   const [leftSidebarCollapsed, setLeftSidebarCollapsed] = useState<boolean>(false);
@@ -424,13 +425,29 @@ export default function IdeWorkspace(): React.JSX.Element {
   const createExplorerFile = useCallback(
     (rawInput: string, folderId: string | null = null, skipCompanionPrompt: boolean = false) => {
       const targetFolder = folderId ? explorerFolders.find((f) => f.id === folderId) : null;
+      const enteredName = rawInput.trim().split("/").pop() || "";
+      const extension = enteredName.slice(enteredName.lastIndexOf(".")).toLowerCase();
+      const allowedExtensions = new Set([".fc", ".ps", ".txt"]);
+      if (!enteredName.includes(".") || enteredName.startsWith(".") || enteredName.endsWith(".")) {
+        setItemError({
+          title: "File extension required",
+          message: "Add an extension to the file name. MapToCode allows only .fc, .ps, and .txt files.",
+        });
+        return null;
+      }
+      if (!allowedExtensions.has(extension)) {
+        setItemError({
+          title: "Unsupported file extension",
+          message: `“${extension}” is not supported. Use only .fc, .ps, or .txt.`,
+        });
+        return null;
+      }
       const resolved = resolveNewFileName(rawInput, targetFolder?.name);
       if (!resolved) return null;
       const { fileName: finalName, fileType, baseName } = resolved;
 
       if (explorerFiles.some((f) => f.name.toLowerCase() === finalName.toLowerCase())) {
-        setNotice(`⚠️ A file named "${finalName}" already exists.`);
-        setTimeout(() => setNotice(""), 3000);
+        setItemError({ title: "File already exists", message: `A file named “${finalName}” already exists. Choose a different name.` });
         return null;
       }
 
@@ -512,6 +529,7 @@ export default function IdeWorkspace(): React.JSX.Element {
   // VS Code Explorer File / Folder Handlers
   const isConfirmingNewItemRef = useRef(false);
   const handleConfirmNewItem = () => {
+    if (itemError) return;
     if (isConfirmingNewItemRef.current) return;
     if (!isCreatingItem) return;
     const raw = newItemName.trim();
@@ -528,10 +546,7 @@ export default function IdeWorkspace(): React.JSX.Element {
 
     if (isCreatingItem === "folder") {
       if (explorerFolders.some((f) => f.name.toLowerCase() === raw.toLowerCase())) {
-        setNotice(`⚠️ A folder named "${raw}" already exists.`);
-        setTimeout(() => setNotice(""), 3000);
-        setIsCreatingItem(null);
-        setNewItemName("");
+        setItemError({ title: "Folder already exists", message: `A folder named “${raw}” already exists. Choose a different name.` });
         return;
       }
       const newFolder: ExplorerFolder = {
@@ -550,11 +565,12 @@ export default function IdeWorkspace(): React.JSX.Element {
 
     // Creating a file:
     const targetFId = targetFolderId;
-    setIsCreatingItem(null);
-    setTargetFolderId(null);
-    setNewItemName("");
-
-    createExplorerFile(raw, targetFId);
+    const result = createExplorerFile(raw, targetFId);
+    if (result) {
+      setIsCreatingItem(null);
+      setTargetFolderId(null);
+      setNewItemName("");
+    }
   };
 
   const handleSkipCompanionModal = () => {
@@ -1067,8 +1083,9 @@ export default function IdeWorkspace(): React.JSX.Element {
         return (
           explorerFiles.find((f) => {
             if (f.type !== "ps" && !f.name.endsWith(".ps")) return false;
-            if (folderId) return f.folderId === folderId;
-            return !f.folderId && (f.name === companionBase || (cleanBase === "main" && f.name === "algorithm.ps"));
+            const candidateBase = f.name.split("/").pop()!.toLowerCase();
+            if (folderId) return f.folderId === folderId && candidateBase === companionBase.toLowerCase();
+            return !f.folderId && (candidateBase === companionBase.toLowerCase() || (cleanBase.toLowerCase() === "main" && candidateBase === "algorithm.ps"));
           }) || null
         );
       }
@@ -1078,8 +1095,9 @@ export default function IdeWorkspace(): React.JSX.Element {
         return (
           explorerFiles.find((f) => {
             if (f.type !== "fc" && !f.name.endsWith(".fc") && !f.name.endsWith(".fs")) return false;
-            if (folderId) return f.folderId === folderId;
-            return !f.folderId && (f.name === companionBase || (cleanBase === "algorithm" && (f.name === "main.fc" || f.name === "main.fs")));
+            const candidateBase = f.name.split("/").pop()!.toLowerCase();
+            if (folderId) return f.folderId === folderId && [companionBase.toLowerCase(), `${cleanBase}.fs`.toLowerCase()].includes(candidateBase);
+            return !f.folderId && (candidateBase === companionBase.toLowerCase() || (cleanBase.toLowerCase() === "algorithm" && ["main.fc", "main.fs"].includes(candidateBase)));
           }) || null
         );
       }
@@ -1379,7 +1397,7 @@ export default function IdeWorkspace(): React.JSX.Element {
     } else if (kind === "input") {
       const existingNames = new Set(
         project.flowchart.nodes
-          .filter((n) => n.kind === "input" || n.kind === "process")
+          .filter((n) => n.kind === "input" || n.kind === "initialization" || n.kind === "process")
           .map((n) => ((n.payload as any)?.name || (n.payload as any)?.target || "").trim())
           .filter(Boolean)
       );
@@ -1393,6 +1411,10 @@ export default function IdeWorkspace(): React.JSX.Element {
       };
     } else if (kind === "process") {
       defaultPayload = { operation: "assignment", symbolId: "symbol-x", expression: "x + 1" };
+    } else if (kind === "initialization") {
+      const existingNames = new Set(project.flowchart.nodes.map((node) => String((node.payload as any)?.name || "").trim()).filter(Boolean));
+      const nextName = ["value", "constant", "pi", "count"].find((name) => !existingNames.has(name)) || `value${existingNames.size + 1}`;
+      defaultPayload = { symbolId: `symbol-${nextName}`, name: nextName, type: "int", initializer: "0" };
     } else if (kind === "decision") {
       defaultPayload = { condition: "x > 0" };
     } else if (kind === "output") {
@@ -1417,7 +1439,7 @@ export default function IdeWorkspace(): React.JSX.Element {
     setPropsWindowCollapsed(false);
   }, [applyGraph, project.flowchart.nodes]);
 
-  const addNode = (kind: "start" | "end" | "input" | "process" | "decision" | "output") => {
+  const addNode = (kind: "start" | "end" | "input" | "initialization" | "process" | "decision" | "output") => {
     const nodes = project.flowchart.nodes;
     const lastNode = nodes[nodes.length - 1];
     const lastPos = (lastNode && project.flowchart.layout.positions[lastNode.id]) || { x: 380, y: 40 };
@@ -2117,7 +2139,7 @@ export default function IdeWorkspace(): React.JSX.Element {
     if (node.kind === "input") {
       const existingNames = new Set(
         project.flowchart.nodes
-          .filter((n) => n.kind === "input" || n.kind === "process")
+          .filter((n) => n.kind === "input" || n.kind === "initialization" || n.kind === "process")
           .map((n) => ((n.payload as any)?.name || (n.payload as any)?.target || "").trim())
           .filter(Boolean)
       );
@@ -2129,6 +2151,13 @@ export default function IdeWorkspace(): React.JSX.Element {
         name: nextName,
         prompt: `Enter ${nextName}: `,
       };
+    } else if (node.kind === "initialization") {
+      const existingNames = new Set(project.flowchart.nodes.map((item) => String((item.payload as any)?.name || "").trim()).filter(Boolean));
+      const baseName = String((newPayload as any).name || "value");
+      let nextName = `${baseName}Copy`;
+      let suffix = 2;
+      while (existingNames.has(nextName)) nextName = `${baseName}Copy${suffix++}`;
+      newPayload = { ...newPayload, name: nextName, symbolId: `symbol-${nextName}` };
     }
     applyGraph((current: FlowchartGraph) => ({
       ...current,
@@ -2520,6 +2549,19 @@ export default function IdeWorkspace(): React.JSX.Element {
         <span className={styles.blockLabel}>Input</span>
       </div>
 
+      <div
+        className={styles.blockCard}
+        draggable
+        onDragStart={(e) => e.dataTransfer.setData("application/maptocode-node", "initialization")}
+        onClick={() => addNode("initialization")}
+        title="Initialize a variable with a starting value"
+      >
+        <div className={styles.blockShape}>
+          <div className={styles.shapeInitialization} />
+        </div>
+        <span className={styles.blockLabel}>Initialize</span>
+      </div>
+
       {/* 3. Output */}
       <div
         className={styles.blockCard}
@@ -2581,6 +2623,9 @@ export default function IdeWorkspace(): React.JSX.Element {
             </button>
             <button type="button" className={styles.dropdownItem} onClick={() => { addNode("input"); setShowAddBlockMenu(false); }}>
               <span>🔵 Input Block</span>
+            </button>
+            <button type="button" className={styles.dropdownItem} onClick={() => { addNode("initialization"); setShowAddBlockMenu(false); }}>
+              <span>🟢 Initialization Block</span>
             </button>
             <button type="button" className={styles.dropdownItem} onClick={() => { addNode("process"); setShowAddBlockMenu(false); }}>
               <span>🟣 Process Block</span>
@@ -2697,57 +2742,109 @@ export default function IdeWorkspace(): React.JSX.Element {
             </>
           )}
 
-          {selectedNodeObj.kind === "process" && (
+          {selectedNodeObj.kind === "initialization" && (
             <>
               <label className={styles.inspectorField}>
-                <span className={styles.inspectorLabel}>Target Variable:</span>
-                <input
-                  className={styles.formInput}
-                  value={(selectedNodeObj.payload as any)?.target || (selectedNodeObj.payload as any)?.name || String((selectedNodeObj.payload as any)?.symbolId || "").replace(/^symbol-/, "")}
-                  placeholder="total"
+                <span className={styles.inspectorLabel}>Identifier:</span>
+                <input className={styles.formInput} value={(selectedNodeObj.payload as any)?.name || ""} placeholder="pi"
                   onChange={(e) => {
-                    const val = e.target.value;
+                    const name = e.target.value;
                     applyGraph((cur: FlowchartGraph) => ({
                       ...cur,
-                      nodes: cur.nodes.map((n) =>
-                        n.id === selectedNodeObj.id
-                          ? { ...n, payload: { operation: "assignment", symbolId: `symbol-${val || n.id}`, expression: (n.payload as any)?.expression || "" } }
-                          : n
-                      ),
+                      nodes: cur.nodes.map((n) => n.id === selectedNodeObj.id
+                        ? { ...n, payload: { ...(n.payload as any), symbolId: `symbol-${name || n.id}`, name } }
+                        : n),
                     }));
-                  }}
-                />
+                  }} />
               </label>
               <label className={styles.inspectorField}>
-                <span className={styles.inspectorLabel}>Calculation Expression:</span>
-                <input
-                  className={styles.formInput}
-                  value={(selectedNodeObj.payload as any)?.expression || ""}
-                  placeholder="x + 1"
+                <span className={styles.inspectorLabel}>Data Type:</span>
+                <select className={styles.inspectorSelect} value={(selectedNodeObj.payload as any)?.type || "int"}
                   onChange={(e) => {
-                    const val = e.target.value;
-                    const fullAssignment = val.match(/^(.+?)\s*(?:←|<-)\s*([A-Za-z_][A-Za-z0-9_]*)$/)
-                      || val.match(/^(.+?)\s*=\s*([A-Za-z_][A-Za-z0-9_]*)$/);
+                    const type = e.target.value as ScalarType;
                     applyGraph((cur: FlowchartGraph) => ({
                       ...cur,
-                      nodes: cur.nodes.map((n) =>
-                        n.id === selectedNodeObj.id
-                          ? {
-                              ...n,
-                              payload: {
-                                operation: "assignment",
-                                symbolId: fullAssignment
-                                  ? `symbol-${fullAssignment[2]}`
-                                  : (n.payload as any)?.symbolId || `symbol-${n.id}`,
-                                expression: fullAssignment ? fullAssignment[1].trim() : val,
-                              },
-                            }
-                          : n
-                      ),
+                      nodes: cur.nodes.map((n) => n.id === selectedNodeObj.id
+                        ? { ...n, payload: { ...(n.payload as any), type } }
+                        : n),
                     }));
-                  }}
-                />
+                  }}>
+                  <option value="int">Integer</option><option value="double">Decimal</option><option value="char">Character</option>
+                </select>
               </label>
+              <label className={styles.inspectorField}>
+                <span className={styles.inspectorLabel}>Starting Value:</span>
+                <input className={styles.formInput} value={(selectedNodeObj.payload as any)?.initializer || ""} placeholder="3.14159"
+                  onChange={(e) => {
+                    const initializer = e.target.value;
+                    applyGraph((cur: FlowchartGraph) => ({
+                      ...cur,
+                      nodes: cur.nodes.map((n) => n.id === selectedNodeObj.id
+                        ? { ...n, payload: { ...(n.payload as any), initializer } }
+                        : n),
+                    }));
+                  }} />
+              </label>
+            </>
+          )}
+
+          {selectedNodeObj.kind === "process" && (
+            <>
+              <>
+                  <label className={styles.inspectorField}>
+                    <span className={styles.inspectorLabel}>Target Variable:</span>
+                    <input
+                      className={styles.formInput}
+                      value={(selectedNodeObj.payload as any)?.target || (selectedNodeObj.payload as any)?.name || (
+                        (selectedNodeObj.payload as any)?.symbolId === `symbol-${selectedNodeObj.id}`
+                          ? ""
+                          : String((selectedNodeObj.payload as any)?.symbolId || "").replace(/^symbol-/, "")
+                      )}
+                      placeholder="total"
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        applyGraph((cur: FlowchartGraph) => ({
+                          ...cur,
+                          nodes: cur.nodes.map((n) =>
+                            n.id === selectedNodeObj.id
+                              ? { ...n, payload: { operation: "assignment", symbolId: `symbol-${val || n.id}`, expression: (n.payload as any)?.expression || "" } }
+                              : n
+                          ),
+                        }));
+                      }}
+                    />
+                  </label>
+                  <label className={styles.inspectorField}>
+                    <span className={styles.inspectorLabel}>Calculation Expression:</span>
+                    <input
+                      className={styles.formInput}
+                      value={(selectedNodeObj.payload as any)?.expression || ""}
+                      placeholder="x + 1"
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        const fullAssignment = val.match(/^(.+?)\s*(?:←|<-)\s*([A-Za-z_][A-Za-z0-9_]*)$/)
+                          || val.match(/^(.+?)\s*=\s*([A-Za-z_][A-Za-z0-9_]*)$/);
+                        applyGraph((cur: FlowchartGraph) => ({
+                          ...cur,
+                          nodes: cur.nodes.map((n) =>
+                            n.id === selectedNodeObj.id
+                              ? {
+                                  ...n,
+                                  payload: {
+                                    operation: "assignment",
+                                    symbolId: fullAssignment
+                                      ? `symbol-${fullAssignment[2]}`
+                                      : (n.payload as any)?.symbolId || `symbol-${n.id}`,
+                                    expression: fullAssignment ? fullAssignment[1].trim() : val,
+                                  },
+                                }
+                              : n
+                          ),
+                        }));
+                      }}
+                    />
+                  </label>
+              </>
             </>
           )}
 
@@ -3911,7 +4008,7 @@ export default function IdeWorkspace(): React.JSX.Element {
                             handleConfirmNewItem();
                           }
                         }}
-                        placeholder="File name (e.g. notes, flow.fc, script.ps)"
+                        placeholder="File name with extension (e.g. notes.txt, flow.fc, script.ps)"
                         autoFocus
                       />
                     </div>
@@ -4259,11 +4356,13 @@ export default function IdeWorkspace(): React.JSX.Element {
                     }}
                   >
                     <span>
-                      {node.kind === "start" ? "🟢" : node.kind === "end" ? "🔴" : node.kind === "decision" ? "🟠" : node.kind === "input" ? "🔵" : "🟣"}
+                      {node.kind === "start" || node.kind === "initialization" ? "🟢" : node.kind === "end" ? "🔴" : node.kind === "decision" ? "🟠" : node.kind === "input" ? "🔵" : "🟣"}
                     </span>
                     <span>
                       {node.kind === "input"
                         ? `Input ${(node.payload as any)?.name || ""}`
+                        : node.kind === "initialization"
+                        ? `Initialize ${(node.payload as any)?.name || "value"} = ${(node.payload as any)?.initializer || "0"}`
                         : node.kind === "decision"
                         ? `Decision ${(node.payload as any)?.condition || ""}`
                         : node.kind === "output"
@@ -4309,6 +4408,7 @@ export default function IdeWorkspace(): React.JSX.Element {
               const file = explorerFiles.find((f) => f.name === tabName);
               const isFc = tabName === "main.fc" || tabName.endsWith(".fc") || tabName.endsWith(".fs") || file?.type === "fc";
               const isPs = tabName === "algorithm.ps" || tabName.endsWith(".ps") || file?.type === "ps";
+              const isLinkedPair = (isFc || isPs) && Boolean(getCompanionFile(file || tabName));
               const isActive = activeTab === tabName;
 
               return (
@@ -4346,10 +4446,10 @@ export default function IdeWorkspace(): React.JSX.Element {
                       title="Unsaved changes (Save with Ctrl+S or Ctrl+C)"
                     />
                   )}
-                  {(isFc || isPs || tabName.endsWith(".txt")) && (
+                  {isLinkedPair && (
                     <span
                       style={{ fontSize: "10px", color: isActive ? "#38bdf8" : "#64748b", opacity: 0.8 }}
-                      title="Part of Linked Pipeline (.fc ➔ .ps ➔ .txt)"
+                      title="Linked flowchart and pseudocode pair"
                     >
                       🔗
                     </span>
@@ -4397,10 +4497,12 @@ export default function IdeWorkspace(): React.JSX.Element {
             const folderFiles = activeFolder
               ? explorerFiles.filter((f) => f.folderId === activeFolder.id)
               : [];
-            const folderFc = folderFiles.find((f) => f.name.endsWith(".fc") || f.name.endsWith(".fs"));
-            const folderPs = folderFiles.find((f) => f.name.endsWith(".ps"));
+            const folderFc = folderFiles.find((f) =>
+              (f.name.endsWith(".fc") || f.name.endsWith(".fs")) && Boolean(getCompanionFile(f))
+            );
+            const folderPs = folderFc ? getCompanionFile(folderFc) : null;
             const folderTxt = folderFiles.find((f) => !f.name.endsWith(".fc") && !f.name.endsWith(".fs") && !f.name.endsWith(".ps"));
-            const hasFolderPipeline = Boolean(activeFolder && folderFiles.length > 1);
+            const hasFolderPipeline = Boolean(folderFc && folderPs);
 
             return (
               <div className={styles.ideBreadcrumbsBar}>
@@ -4550,10 +4652,12 @@ export default function IdeWorkspace(): React.JSX.Element {
                   </div>
                 ) : activeTab ? (
                   <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                    <div className={styles.standaloneBadge} title="Standalone file outside folders — works independently without linking to other files or folders">
-                      <span className={styles.standaloneDot} />
-                      <span>Standalone File</span>
-                    </div>
+                    {!activeFolder && !getCompanionFile(activeFileObj || activeTab) && (
+                      <div className={styles.standaloneBadge} title="Standalone file without a matching flowchart and pseudocode pair">
+                        <span className={styles.standaloneDot} />
+                        <span>Standalone File</span>
+                      </div>
+                    )}
                     {isCurrentFc && !getCompanionFile(activeTab) ? (
                       <button
                         type="button"
@@ -5746,56 +5850,39 @@ export default function IdeWorkspace(): React.JSX.Element {
 
       {/* In-app Delete Confirmation Modal */}
       {deleteModal && (
-        <div className={styles.overlay} onClick={() => setDeleteModal(null)}>
+        <div className={styles.duplicateItemOverlay} onClick={() => setDeleteModal(null)}>
           <div
-            className={styles.modal}
-            style={{ maxWidth: "440px" }}
+            className={styles.duplicateItemDialog}
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="delete-confirm-title"
+            aria-describedby="delete-confirm-message"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className={styles.modalHeader}>
-              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                <span style={{ fontSize: "16px", color: "#f44747" }}>🗑️</span>
-                <span className={styles.modalHeaderTitle}>
-                  Delete {deleteModal.isProject ? "Project" : deleteModal.isFolder ? "Folder" : "File"}?
-                </span>
+            <div className={styles.duplicateItemHeading}>
+              <div className={styles.duplicateItemIcon} aria-hidden="true">!</div>
+              <div>
+                <h2 id="delete-confirm-title">
+                  Delete {deleteModal.isProject ? "project" : deleteModal.isFolder ? "folder" : "file"}?
+                </h2>
+                <p id="delete-confirm-message">
+                  Are you sure you want to delete <strong>&quot;{deleteModal.name}&quot;</strong>?
+                </p>
+                {deleteModal.isFolder && <p>This also removes all files inside this folder.</p>}
+                {deleteModal.isProject && <p>This also removes the project and its workspace files.</p>}
               </div>
+            </div>
+            <div className={styles.duplicateItemActions}>
               <button
                 type="button"
-                className={styles.modalCloseBtn}
-                onClick={() => setDeleteModal(null)}
-                aria-label="Close"
-              >
-                ✕
-              </button>
-            </div>
-            <div className={styles.modalBody}>
-              <p style={{ fontSize: "13px", color: "#cccccc", margin: "0", lineHeight: "1.5" }}>
-                Are you sure you want to delete{" "}
-                <strong style={{ color: "#ffffff" }}>"{deleteModal.name}"</strong>?
-              </p>
-              {deleteModal.isFolder && (
-                <p style={{ fontSize: "12px", color: "#f87171", margin: "8px 0 0", lineHeight: "1.4" }}>
-                  ⚠️ This will delete all files and subfolders inside this folder.
-                </p>
-              )}
-              {deleteModal.isProject && (
-                <p style={{ fontSize: "12px", color: "#f87171", margin: "8px 0 0", lineHeight: "1.4" }}>
-                  ⚠️ This project and its workspace files will be permanently removed.
-                </p>
-              )}
-            </div>
-            <div className={styles.modalFooter}>
-              <button
-                type="button"
-                className={styles.btnSecondary}
                 onClick={() => setDeleteModal(null)}
               >
                 Cancel
               </button>
               <button
                 type="button"
-                className={styles.btnPrimary}
-                style={{ background: "#dc2626", borderColor: "#ef4444" }}
+                className={styles.deleteConfirmButton}
+                autoFocus
                 onClick={handleConfirmDelete}
               >
                 Delete
@@ -6468,6 +6555,29 @@ export default function IdeWorkspace(): React.JSX.Element {
               />
             </div>
           </div>
+        </div>
+      )}
+
+      {itemError && (
+        <div className={styles.duplicateItemOverlay}>
+          <section
+            className={styles.duplicateItemDialog}
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="duplicate-item-title"
+            aria-describedby="duplicate-item-message"
+          >
+            <div className={styles.duplicateItemHeading}>
+              <div className={styles.duplicateItemIcon} aria-hidden="true">!</div>
+              <div>
+                <h2 id="duplicate-item-title">{itemError.title}</h2>
+                <p id="duplicate-item-message">{itemError.message}</p>
+              </div>
+            </div>
+            <div className={styles.duplicateItemActions}>
+              <button type="button" autoFocus onClick={() => setItemError(null)}>Got it</button>
+            </div>
+          </section>
         </div>
       )}
     </div>

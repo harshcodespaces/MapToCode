@@ -58,7 +58,17 @@ export function parsePseudocodeToFlowchart(text, projectId = "parsed-project") {
         break;
       }
 
-      if (/^INPUT\b/i.test(line) || /^READ\b/i.test(line)) {
+      const declarationMatch = line.match(/^(?:DECLARE|CONSTANT)\s+([A-Za-z_][A-Za-z0-9_]*)(?:\s*:\s*(int|double|float|char))?(?:\s*=\s*(.+))?$/i);
+      if (declarationMatch) {
+        const [, name, declaredType, initializer] = declarationMatch;
+        const cleanInitializer = initializer?.trim();
+        const inferredType = declaredType?.toLowerCase() === "float"
+          ? "double"
+          : declaredType?.toLowerCase()
+            || (cleanInitializer && /(?:\.\d|\d[eE][+-]?\d)/.test(cleanInitializer) ? "double" : "int");
+        block.push({ type: "declaration", name, valueType: inferredType, initializer: cleanInitializer });
+        cursor++;
+      } else if (/^INPUT\b/i.test(line) || /^READ\b/i.test(line)) {
         // INPUT varName [PROMPT "prompt text"]
         const afterInput = line.replace(/^(INPUT|READ)\s+/i, "").trim();
         const promptMatch = afterInput.match(/PROMPT\s+["']([^"']+)["']/i);
@@ -158,6 +168,14 @@ export function parsePseudocodeToFlowchart(text, projectId = "parsed-project") {
     let payload;
     if (item.type === "input") {
       payload = { symbolId: `symbol-${item.name}`, name: item.name, type: "int", prompt: item.prompt };
+    } else if (item.type === "declaration") {
+      kind = "initialization";
+      payload = {
+        symbolId: `symbol-${item.name}`,
+        name: item.name,
+        type: item.valueType,
+        ...(item.initializer ? { initializer: item.initializer } : {}),
+      };
     } else if (item.type === "process") {
       payload = { operation: "assignment", symbolId: `symbol-${item.target}`, expression: item.expression };
     } else if (item.type === "output") {

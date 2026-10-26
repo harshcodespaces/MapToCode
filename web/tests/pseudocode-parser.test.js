@@ -4,6 +4,7 @@ import { parsePseudocodeToFlowchart } from "../core/pseudocode-parser.js";
 import { validateFlowchartContract } from "../core/contract-validation.js";
 import { adaptFlowchartToAst } from "../core/adapters.js";
 import { generatePythonFromAst } from "../core/python-generator.js";
+import { generateCFromAst } from "../core/c-generator.js";
 import { explainFlowchartToLearner } from "../core/flowchart-explanation.js";
 
 test("parses linear sequential pseudocode into connected flowchart", () => {
@@ -164,6 +165,59 @@ END
   assert.match(pseudocode, /OUTPUT "small positive"/);
   assert.match(pseudocode, /OUTPUT "not positive"/);
   assert.match(pseudocode, /OUTPUT "finished"/);
+});
+
+test("initializes non-input constants and infers decimal calculation types", () => {
+  const result = parsePseudocodeToFlowchart(`
+BEGIN
+  DECLARE pi: double = 3.14159
+  INPUT radius PROMPT "Radius: "
+  area = pi * radius * radius
+  OUTPUT area
+END
+  `);
+
+  assert.equal(result.success, true);
+  assert.deepEqual(validateFlowchartContract(result.flowchart), []);
+  const declaration = result.flowchart.nodes.find((node) => node.kind === "initialization");
+  assert.deepEqual(declaration.payload, {
+    symbolId: "symbol-pi",
+    name: "pi",
+    type: "double",
+    initializer: "3.14159",
+  });
+
+  const adapted = adaptFlowchartToAst(result.flowchart, { projectId: "circle-area-example" });
+  assert.deepEqual(adapted.diagnostics, []);
+  assert.ok(adapted.ast.symbols.some((symbol) => symbol.name === "pi" && symbol.type === "double"));
+  assert.ok(adapted.ast.symbols.some((symbol) => symbol.name === "area" && symbol.type === "double"));
+  const python = generatePythonFromAst(adapted.ast);
+  assert.deepEqual(python.diagnostics, []);
+  assert.match(python.code, /pi = 3\.14159/);
+  assert.match(python.code, /area = .*pi.*radius/);
+  const c = generateCFromAst(adapted.ast);
+  assert.deepEqual(c.diagnostics, []);
+  assert.match(c.code, /double pi = 3\.14159;/);
+  assert.match(c.code, /double area;/);
+
+  const regenerated = explainFlowchartToLearner(result.flowchart).pseudocode;
+  assert.match(regenerated, /DECLARE pi: double = 3\.14159/);
+  assert.match(regenerated, /area = pi \* radius \* radius/);
+  assert.equal(validateFlowchartContract(parsePseudocodeToFlowchart(regenerated).flowchart).length, 0);
+});
+
+test("infers a decimal type when a value is initialized with a plain assignment", () => {
+  const result = parsePseudocodeToFlowchart(`BEGIN
+DECLARE radius: double = 2.5
+pi = 3.14159
+area = pi * radius * radius
+OUTPUT area
+END`);
+  const adapted = adaptFlowchartToAst(result.flowchart);
+  assert.deepEqual(adapted.diagnostics, []);
+  assert.ok(adapted.ast.symbols.some((symbol) => symbol.name === "pi" && symbol.type === "double"));
+  assert.ok(adapted.ast.symbols.some((symbol) => symbol.name === "area" && symbol.type === "double"));
+  assert.deepEqual(generatePythonFromAst(adapted.ast).diagnostics, []);
 });
 
 test("rejects empty pseudocode gracefully", () => {

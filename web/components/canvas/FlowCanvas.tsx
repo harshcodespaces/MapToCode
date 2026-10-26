@@ -86,7 +86,7 @@ export interface FlowCanvasProps {
   setSelectedEdge?: (id: string | null) => void;
   onDeleteEdge?: (edgeId: string) => void;
   onDeleteNode?: (nodeId: string) => void;
-  onInsertNodeOnEdge?: (edgeId: string, kind: "input" | "process" | "decision" | "output") => void;
+  onInsertNodeOnEdge?: (edgeId: string, kind: "input" | "initialization" | "process" | "decision" | "output") => void;
   onConnect?: (from: string, to: string, branch?: "true" | "false") => void;
   snapToGrid?: boolean;
   showGrid?: boolean;
@@ -489,6 +489,15 @@ export default function FlowCanvas({
                       <button
                         type="button"
                         onClick={() => {
+                          onInsertNodeOnEdge(edge.id, "initialization");
+                          setInsertingOnEdge(null);
+                        }}
+                      >
+                        🟢 Initialize variable
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
                           onInsertNodeOnEdge(edge.id, "process");
                           setInsertingOnEdge(null);
                         }}
@@ -626,7 +635,12 @@ export default function FlowCanvas({
                     <span className={styles.nodeLabelText}>
                       {node.payload?.operation === "declaration"
                         ? `${node.payload.name} = ${node.payload.initializer || 0}`
-                        : `${String(node.payload?.symbolId || "").replace(/^symbol-/, "") || "result"} = ${node.payload?.expression || "Calculate"}`}
+                        : `${node.payload?.symbolId === `symbol-${node.id}` ? "result" : String(node.payload?.symbolId || "").replace(/^symbol-/, "") || "result"} = ${node.payload?.expression || "Calculate"}`}
+                    </span>
+                  )}
+                  {node.kind === "initialization" && (
+                    <span className={styles.nodeLabelText}>
+                      {node.payload?.name || "value"} = {node.payload?.initializer || "0"}
                     </span>
                   )}
                   {node.kind === "output" && (
