@@ -669,7 +669,7 @@ export default function FlowCanvas({
                         <button
                           type="button"
                           className={`${styles.nodeConnectHandle} ${styles.nodeConnectHandleYes}`}
-                          style={{ left: pos.x - 30, top: pos.y + 28 }}
+                          style={{ left: Math.max(8, pos.x - 30), top: pos.y + 28 }}
                           onClick={(e) => {
                             e.stopPropagation();
                             setConnectingFrom({ id: node.id, branch: "true" });
@@ -710,7 +710,7 @@ export default function FlowCanvas({
                     )}
                   </>
                 )}
-                {isSelected && !readOnly && !connectingFrom && (
+                {isSelected && !readOnly && !connectingFrom && node.kind !== "start" && (
                   <button
                     type="button"
                     className={`${styles.nodeConnectHandle} ${styles.nodeDuplicateHandle}`}

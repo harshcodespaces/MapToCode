@@ -65,6 +65,28 @@ test("expression parser follows precedence and creates a structured expression t
   assert.equal(expression.right.operator, "!");
 });
 
+test("expression parser supports English logical operators and, or, not", () => {
+  const exprAnd = parseExpression("x > 0 and y > 0", { idPrefix: "and-expr" });
+  assert.equal(exprAnd.kind, "BinaryExpression");
+  assert.equal(exprAnd.operator, "&&");
+  assert.equal(exprAnd.left.operator, ">");
+  assert.equal(exprAnd.right.operator, ">");
+
+  const exprOr = parseExpression("x <= 0 or y >= 10", { idPrefix: "or-expr" });
+  assert.equal(exprOr.kind, "BinaryExpression");
+  assert.equal(exprOr.operator, "||");
+
+  const exprNot = parseExpression("not (x == 0)", { idPrefix: "not-expr" });
+  assert.equal(exprNot.kind, "UnaryExpression");
+  assert.equal(exprNot.operator, "!");
+
+  const exprMixed = parseExpression("x > 0 and not y > 0", { idPrefix: "mix-expr" });
+  assert.equal(exprMixed.kind, "BinaryExpression");
+  assert.equal(exprMixed.operator, "&&");
+  assert.equal(exprMixed.right.kind, "UnaryExpression");
+  assert.equal(exprMixed.right.operator, "!");
+});
+
 test("expression parser accepts numeric and character literals and rejects unsafe syntax", () => {
   assert.equal(parseExpression("2.5 * -3").kind, "BinaryExpression");
   assert.deepEqual(parseExpression("'\\n'"), { id: "expression:e0", kind: "CharacterLiteral", value: "\n" });

@@ -117,15 +117,21 @@ const declarationSchema = {
 };
 
 const specificationStepSchema = {
+  type: "object",
+  discriminator: { propertyName: "kind" },
   oneOf: [
     { type: "object", additionalProperties: false, required: ["id", "kind", "payload"], properties: { id, kind: { const: "declaration" }, payload: { type: "object", additionalProperties: false, required: ["symbolId"], properties: { symbolId: id, initializer: { type: "string", maxLength: 256 } } } } },
     { type: "object", additionalProperties: false, required: ["id", "kind", "payload"], properties: { id, kind: { const: "assignment" }, payload: { type: "object", additionalProperties: false, required: ["targetId", "expression"], properties: { targetId: id, expression: { type: "string", maxLength: 256 } } } } },
     { type: "object", additionalProperties: false, required: ["id", "kind", "payload"], properties: { id, kind: { const: "input" }, payload: { type: "object", additionalProperties: false, required: ["inputId", "prompt"], properties: { inputId: id, prompt: { type: "string", maxLength: 200 } } } } },
-    { type: "object", additionalProperties: false, required: ["id", "kind", "payload"], properties: { id, kind: { const: "output" }, payload: { oneOf: [
-      { type: "object", additionalProperties: false, required: ["outputId", "mode", "message"], properties: { outputId: id, mode: { const: "message" }, message: { type: "string", maxLength: 500 } } },
-      { type: "object", additionalProperties: false, required: ["outputId", "mode", "expression"], properties: { outputId: id, mode: { const: "expression" }, expression: { type: "string", maxLength: 256 } } },
-      { type: "object", additionalProperties: false, required: ["outputId", "mode", "message", "expression"], properties: { outputId: id, mode: { const: "formatted" }, message: { type: "string", maxLength: 500 }, expression: { type: "string", minLength: 1, maxLength: 256 } } },
-    ] } } },
+    { type: "object", additionalProperties: false, required: ["id", "kind", "payload"], properties: { id, kind: { const: "output" }, payload: {
+      type: "object",
+      discriminator: { propertyName: "mode" },
+      oneOf: [
+        { type: "object", additionalProperties: false, required: ["outputId", "mode", "message"], properties: { outputId: id, mode: { const: "message" }, message: { type: "string", maxLength: 500 } } },
+        { type: "object", additionalProperties: false, required: ["outputId", "mode", "expression"], properties: { outputId: id, mode: { const: "expression" }, expression: { type: "string", maxLength: 256 } } },
+        { type: "object", additionalProperties: false, required: ["outputId", "mode", "message", "expression"], properties: { outputId: id, mode: { const: "formatted" }, message: { type: "string", maxLength: 500 }, expression: { type: "string", minLength: 1, maxLength: 256 } } },
+      ],
+    } } },
     { type: "object", additionalProperties: false, required: ["id", "kind", "payload"], properties: { id, kind: { const: "conditional" }, payload: { type: "object", additionalProperties: false, required: ["condition", "whenTrue", "whenFalse"], properties: { condition: { type: "string", maxLength: 256 }, whenTrue: { type: "array", items: { $ref: "#/$defs/step" } }, whenFalse: { type: "array", items: { $ref: "#/$defs/step" } } } } } },
   ],
 };
@@ -152,16 +158,24 @@ export const specificationSchema = {
 
 const graphNode = (kind, payload) => ({ type: "object", additionalProperties: false, required: ["id", "kind", "payload"], properties: { id, kind: { const: kind }, payload } });
 const emptyPayload = { type: "object", additionalProperties: false, maxProperties: 0 };
-const processPayload = { oneOf: [
-  { type: "object", additionalProperties: false, required: ["operation", "symbolId", "name", "type"], properties: { operation: { const: "declaration" }, symbolId: id, name: { type: "string", maxLength: 64 }, type: { enum: ["int", "double", "char"] }, initializer: { type: "string", maxLength: 256 } } },
-  { type: "object", additionalProperties: false, required: ["operation", "symbolId", "expression"], properties: { operation: { const: "assignment" }, symbolId: id, expression: { type: "string", maxLength: 256 } } },
-] };
+const processPayload = {
+  type: "object",
+  discriminator: { propertyName: "operation" },
+  oneOf: [
+    { type: "object", additionalProperties: false, required: ["operation", "symbolId", "name", "type"], properties: { operation: { const: "declaration" }, symbolId: id, name: { type: "string", maxLength: 64 }, type: { enum: ["int", "double", "char"] }, initializer: { type: "string", maxLength: 256 } } },
+    { type: "object", additionalProperties: false, required: ["operation", "symbolId", "expression"], properties: { operation: { const: "assignment" }, symbolId: id, expression: { type: "string", maxLength: 256 } } },
+  ],
+};
 const initializationPayload = { type: "object", additionalProperties: false, required: ["symbolId", "name", "type", "initializer"], properties: { symbolId: id, name: { type: "string", maxLength: 64 }, type: { enum: ["int", "double", "char"] }, initializer: { type: "string", minLength: 1, maxLength: 256 } } };
-const outputPayload = { oneOf: [
-  { type: "object", additionalProperties: false, required: ["outputId", "mode", "message"], properties: { outputId: id, mode: { const: "message" }, message: { type: "string", maxLength: 500 } } },
-  { type: "object", additionalProperties: false, required: ["outputId", "mode", "expression"], properties: { outputId: id, mode: { const: "expression" }, expression: { type: "string", maxLength: 256 } } },
-  { type: "object", additionalProperties: false, required: ["outputId", "mode", "message", "expression"], properties: { outputId: id, mode: { const: "formatted" }, message: { type: "string", maxLength: 500 }, expression: { type: "string", minLength: 1, maxLength: 256 } } },
-] };
+const outputPayload = {
+  type: "object",
+  discriminator: { propertyName: "mode" },
+  oneOf: [
+    { type: "object", additionalProperties: false, required: ["outputId", "mode", "message"], properties: { outputId: id, mode: { const: "message" }, message: { type: "string", maxLength: 500 } } },
+    { type: "object", additionalProperties: false, required: ["outputId", "mode", "expression"], properties: { outputId: id, mode: { const: "expression" }, expression: { type: "string", maxLength: 256 } } },
+    { type: "object", additionalProperties: false, required: ["outputId", "mode", "message", "expression"], properties: { outputId: id, mode: { const: "formatted" }, message: { type: "string", maxLength: 500 }, expression: { type: "string", minLength: 1, maxLength: 256 } } },
+  ],
+};
 
 export const flowchartSchema = {
   $schema: "https://json-schema.org/draft/2020-12/schema",
@@ -175,15 +189,19 @@ export const flowchartSchema = {
     layout: { type: "object", additionalProperties: false, required: ["positions", "zoom"], properties: { positions: { type: "object", additionalProperties: { type: "object", additionalProperties: false, required: ["x", "y"], properties: { x: { type: "number" }, y: { type: "number" } } } }, zoom: { type: "number", exclusiveMinimum: 0 } } },
   },
   $defs: {
-    node: { oneOf: [
-      graphNode("start", emptyPayload),
-      graphNode("end", emptyPayload),
-      graphNode("process", processPayload),
-      graphNode("initialization", initializationPayload),
-      graphNode("input", { type: "object", additionalProperties: false, required: ["symbolId", "name", "type", "prompt"], properties: { symbolId: id, name: { type: "string", maxLength: 64 }, type: { enum: ["int", "double", "char"] }, prompt: { type: "string", maxLength: 200 } } }),
-      graphNode("output", outputPayload),
-      graphNode("decision", { type: "object", additionalProperties: false, required: ["condition"], properties: { condition: { type: "string", maxLength: 256 } } }),
-    ] },
+    node: {
+      type: "object",
+      discriminator: { propertyName: "kind" },
+      oneOf: [
+        graphNode("start", emptyPayload),
+        graphNode("end", emptyPayload),
+        graphNode("process", processPayload),
+        graphNode("initialization", initializationPayload),
+        graphNode("input", { type: "object", additionalProperties: false, required: ["symbolId", "name", "type", "prompt"], properties: { symbolId: id, name: { type: "string", maxLength: 64 }, type: { enum: ["int", "double", "char"] }, prompt: { type: "string", maxLength: 200 } } }),
+        graphNode("output", outputPayload),
+        graphNode("decision", { type: "object", additionalProperties: false, required: ["condition"], properties: { condition: { type: "string", maxLength: 256 } } }),
+      ],
+    },
     edge: { type: "object", additionalProperties: false, required: ["id", "from", "to"], properties: { id, from: id, to: id, branch: { enum: ["true", "false"] } } },
   },
 };

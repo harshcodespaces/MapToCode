@@ -147,7 +147,9 @@ export function validateAstSemantics(ast) {
     const op = expression.operator;
     if (["+", "-", "*", "/"].includes(op)) {
       if (!NUMERIC.has(left) || !NUMERIC.has(right)) {
-        report("TYPE_OPERAND_INVALID", "type", `Operator ${op} needs numeric operands.`, expression);
+        if (left !== undefined && right !== undefined) {
+          report("TYPE_OPERAND_INVALID", "type", `Operator ${op} needs numeric operands.`, expression);
+        }
         return setType(expression, undefined);
       }
       if (op === "/" && constantValue(expression.right) === 0) {
@@ -157,7 +159,9 @@ export function validateAstSemantics(ast) {
     }
     if (op === "%") {
       if (left !== "int" || right !== "int") {
-        report("TYPE_OPERAND_INVALID", "type", "Remainder % needs two int operands.", expression);
+        if (left !== undefined && right !== undefined) {
+          report("TYPE_OPERAND_INVALID", "type", "Remainder % needs two int operands.", expression);
+        }
         return setType(expression, undefined);
       }
       if (constantValue(expression.right) === 0) report("SEM_DIVISION_BY_ZERO_STATIC", "semantics", "This expression uses a remainder divisor statically known to be zero.", expression);
@@ -165,7 +169,9 @@ export function validateAstSemantics(ast) {
     }
     if (["<", "<=", ">", ">="].includes(op)) {
       if (!NUMERIC.has(left) || !NUMERIC.has(right)) {
-        report("TYPE_OPERAND_INVALID", "type", `Comparison ${op} needs numeric operands; character ordering is not supported.`, expression);
+        if (left !== undefined && right !== undefined) {
+          report("TYPE_OPERAND_INVALID", "type", `Comparison ${op} needs numeric operands; character ordering is not supported.`, expression);
+        }
         return setType(expression, undefined);
       }
       return setType(expression, "bool");
@@ -173,14 +179,18 @@ export function validateAstSemantics(ast) {
     if (["==", "!="].includes(op)) {
       const compatible = (NUMERIC.has(left) && NUMERIC.has(right)) || (left === "char" && right === "char");
       if (!compatible) {
-        report("TYPE_OPERAND_INVALID", "type", `Comparison ${op} needs compatible scalar values.`, expression);
+        if (left !== undefined && right !== undefined) {
+          report("TYPE_OPERAND_INVALID", "type", `Comparison ${op} needs compatible scalar values.`, expression);
+        }
         return setType(expression, undefined);
       }
       return setType(expression, "bool");
     }
     if (["&&", "||"].includes(op)) {
       if (left !== "bool" || right !== "bool") {
-        report("TYPE_OPERAND_INVALID", "type", `Logical ${op} needs Boolean conditions on both sides.`, expression);
+        if (left !== undefined && right !== undefined) {
+          report("TYPE_OPERAND_INVALID", "type", `Logical ${op} needs Boolean conditions on both sides.`, expression);
+        }
         return setType(expression, undefined);
       }
       return setType(expression, "bool");
@@ -200,7 +210,7 @@ export function validateAstSemantics(ast) {
       report("SYMBOL_UNDECLARED", "semantics", `Statement targets missing symbol “${symbolId}”.`, node);
       return null;
     }
-    if (!canAssign(symbol.type, valueType)) {
+    if (valueType !== undefined && !canAssign(symbol.type, valueType)) {
       report("TYPE_ASSIGNMENT_INVALID", "type", `Cannot assign ${valueType ?? "unknown"} to ${symbol.type} variable “${symbol.name}”.`, node);
     }
     return symbol;
@@ -237,7 +247,7 @@ export function validateAstSemantics(ast) {
         if (statement.mode !== "message") infer(statement.value, currentInitialized, currentDeclared);
       } else if (statement.kind === "IfStatement") {
         const conditionType = infer(statement.condition, currentInitialized, currentDeclared);
-        if (conditionType !== "bool") report("TYPE_CONDITION_INVALID", "type", "An IfStatement condition must have Boolean type.", statement);
+        if (conditionType !== undefined && conditionType !== "bool") report("TYPE_CONDITION_INVALID", "type", "An IfStatement condition must have Boolean type.", statement);
         const thenState = checkBlock(statement.thenBlock, { declared: currentDeclared, initialized: currentInitialized });
         const elseState = checkBlock(statement.elseBlock, { declared: currentDeclared, initialized: currentInitialized });
         currentDeclared = new Set([...thenState.declared].filter((id) => elseState.declared.has(id)));

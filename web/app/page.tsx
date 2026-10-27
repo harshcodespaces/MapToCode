@@ -169,12 +169,8 @@ export default function Home(): React.JSX.Element {
 
             {/* CTA Buttons */}
             <div className={styles.ctaRow}>
-              <Link href="/workspace?workflow=logic&new=1" className={styles.primaryCta}>
-                Option A: Describe My Logic
-                <span className={styles.arrowIcon} aria-hidden="true">→</span>
-              </Link>
-              <Link href="/workspace?workflow=flowchart&new=1" className={styles.workflowSelectBtnAmber}>
-                Option B: Draw My Flowchart
+              <Link href="/workspace?new=1" className={styles.primaryCta}>
+                Create Your Project
                 <span className={styles.arrowIcon} aria-hidden="true">→</span>
               </Link>
               <a href="#examples" className={styles.secondaryCta}>

@@ -65,6 +65,27 @@ END
   assert.match(generatePythonFromAst(legacyAdapted.ast).code, /z = \(x \+ y\)/);
 });
 
+test("parses standard target-left assignment arrow and generates valid Python", () => {
+  const result = parsePseudocodeToFlowchart(`
+BEGIN
+  INPUT x PROMPT "Enter x: "
+  INPUT y PROMPT "Enter y: "
+  z ← x + y
+  OUTPUT z
+END
+  `);
+
+  assert.equal(result.success, true);
+  assert.deepEqual(validateFlowchartContract(result.flowchart), []);
+  const adapted = adaptFlowchartToAst(result.flowchart, { projectId: "sum-standard-arrow" });
+  assert.deepEqual(adapted.diagnostics, []);
+  assert.ok(adapted.ast);
+  const generated = generatePythonFromAst(adapted.ast);
+  assert.deepEqual(generated.diagnostics, []);
+  assert.match(generated.code, /z = \(x \+ y\)/);
+  assert.match(generated.code, /print\(z\)/);
+});
+
 test("parses branching IF/ELSE pseudocode into decision flowchart with true and false edges", () => {
   const code = `
 BEGIN

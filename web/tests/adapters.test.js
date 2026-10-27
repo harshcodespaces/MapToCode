@@ -160,3 +160,90 @@ test("flowchart adapter supports multiple End blocks terminating branches", () =
   assert.ok(result.ast);
   assert.deepEqual(validateAstSemantics(result.ast).diagnostics, []);
 });
+
+test("flowchart adapter correctly parses standard target = expression in process nodes", () => {
+  const flowchart = {
+    schemaVersion: "1.0.0",
+    revision: 1,
+    nodes: [
+      { id: "start", kind: "start", payload: {} },
+      { id: "read-x", kind: "input", payload: { symbolId: "symbol-x", name: "x", type: "int", prompt: "Enter x: " } },
+      { id: "calc", kind: "process", payload: { expression: "y = x + 10" } },
+      { id: "say-y", kind: "output", payload: { outputId: "out-y", mode: "expression", expression: "y" } },
+      { id: "finish", kind: "end", payload: {} },
+    ],
+    edges: [
+      { id: "e1", from: "start", to: "read-x" },
+      { id: "e2", from: "read-x", to: "calc" },
+      { id: "e3", from: "calc", to: "say-y" },
+      { id: "e4", from: "say-y", to: "finish" },
+    ],
+    layout: { positions: {}, zoom: 1 },
+  };
+
+  const result = adaptFlowchartToAst(flowchart);
+  assert.deepEqual(result.diagnostics, []);
+  assert.ok(result.ast);
+  const ySymbol = result.ast.symbols.find((s) => s.name === "y");
+  assert.ok(ySymbol);
+  assert.equal(ySymbol.type, "int");
+  assert.deepEqual(validateAstSemantics(result.ast).diagnostics, []);
+});
+
+test("flowchart adapter handles initialization followed by assignment without duplicate declaration", () => {
+  const chart = {
+    schemaVersion: "1.0.0",
+    revision: 1,
+    nodes: [
+      { id: "start", kind: "start", payload: {} },
+      { id: "init-max", kind: "initialization", payload: { symbolId: "symbol-max", name: "max", type: "int", initializer: "0" } },
+      { id: "assign-max", kind: "process", payload: { operation: "assignment", symbolId: "symbol-max", expression: "10" } },
+      { id: "finish", kind: "end", payload: {} },
+    ],
+    edges: [
+      { id: "e1", from: "start", to: "init-max" },
+      { id: "e2", from: "init-max", to: "assign-max" },
+      { id: "e3", from: "assign-max", to: "finish" },
+    ],
+    layout: { positions: {}, zoom: 1 },
+  };
+
+  const result = adaptFlowchartToAst(chart);
+  assert.deepEqual(result.diagnostics, []);
+  assert.ok(result.ast);
+  const astVal = validateAstSemantics(result.ast);
+  assert.equal(astVal.valid, true);
+  assert.deepEqual(astVal.diagnostics, []);
+});
+
+test("flowchart adapter accepts English and, or, not in decision conditions", () => {
+  const chart = {
+    schemaVersion: "1.0.0",
+    revision: 1,
+    nodes: [
+      { id: "start", kind: "start", payload: {} },
+      { id: "read-x", kind: "input", payload: { symbolId: "symbol-x", name: "x", type: "int", prompt: "Enter x: " } },
+      { id: "read-y", kind: "input", payload: { symbolId: "symbol-y", name: "y", type: "int", prompt: "Enter y: " } },
+      { id: "check", kind: "decision", payload: { condition: "x > 0 and not y <= 0" } },
+      { id: "out-yes", kind: "output", payload: { outputId: "out-y", mode: "message", message: "Both positive" } },
+      { id: "out-no", kind: "output", payload: { outputId: "out-n", mode: "message", message: "Not both positive" } },
+      { id: "finish", kind: "end", payload: {} },
+    ],
+    edges: [
+      { id: "e1", from: "start", to: "read-x" },
+      { id: "e2", from: "read-x", to: "read-y" },
+      { id: "e3", from: "read-y", to: "check" },
+      { id: "e4", from: "check", to: "out-yes", branch: "true" },
+      { id: "e5", from: "check", to: "out-no", branch: "false" },
+      { id: "e6", from: "out-yes", to: "finish" },
+      { id: "e7", from: "out-no", to: "finish" },
+    ],
+    layout: { positions: {}, zoom: 1 },
+  };
+
+  const result = adaptFlowchartToAst(chart);
+  assert.deepEqual(result.diagnostics, []);
+  assert.ok(result.ast);
+  const astVal = validateAstSemantics(result.ast);
+  assert.equal(astVal.valid, true);
+});

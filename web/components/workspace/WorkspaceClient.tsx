@@ -867,14 +867,11 @@ export default function M1WorkspaceClient(): React.JSX.Element {
   const deleteNode = () => {
     if (!selected) return;
     if (selected.kind === "start") {
-      setNotice("Start block is a required entrypoint and cannot be deleted.");
-      return;
-    }
-    if (selected.kind === "end") {
-      const endCount = graph.nodes.filter((n) => n.kind === "end").length;
-      if (endCount <= 1) {
-        setNotice("Flowchart must have at least one End block.");
-        return;
+      setNotice("Deleted Start block. You can re-add it from the palette anytime.");
+    } else if (selected.kind === "end") {
+      const remainingEnds = graph.nodes.filter((n) => n.kind === "end" && n.id !== selected.id);
+      if (remainingEnds.length === 0) {
+        setNotice("Deleted End block. You can re-add it from the palette anytime.");
       }
     }
     applyGraph((current: FlowchartGraph) => {
@@ -2425,25 +2422,19 @@ export default function M1WorkspaceClient(): React.JSX.Element {
                   <div className={styles.inspectorHeader}>
                     <strong>Selected: {selected.kind.toUpperCase()} Block</strong>
                     <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
-                      {selected.kind !== "start" && selected.kind !== "end" ? (
-                        <>
-                          <button
-                            type="button"
-                            className={styles.duplicateBtn}
-                            onClick={() => duplicateNode(selected.id)}
-                            title="Create a duplicate copy of this block"
-                          >
-                            📋 Duplicate
-                          </button>
-                          <button type="button" className={styles.dangerBtn} onClick={deleteNode}>
-                            Delete Block
-                          </button>
-                        </>
-                      ) : (
-                        <span className={styles.requiredNodeBadge} title="Start and End blocks cannot be deleted">
-                          Required
-                        </span>
+                      {selected.kind !== "start" && (
+                        <button
+                          type="button"
+                          className={styles.duplicateBtn}
+                          onClick={() => duplicateNode(selected.id)}
+                          title="Create a duplicate copy of this block"
+                        >
+                          📋 Duplicate
+                        </button>
                       )}
+                      <button type="button" className={styles.dangerBtn} onClick={deleteNode} title="Delete Block">
+                        Delete Block
+                      </button>
                       <button
                         type="button"
                         className={styles.closeInspectorBtn}
@@ -2716,9 +2707,9 @@ export default function M1WorkspaceClient(): React.JSX.Element {
                                       ? {
                                           ...n,
                                           payload: {
-                                            ...(n.payload as any),
                                             operation: "assignment",
                                             symbolId: e.target.value,
+                                            expression: (n.payload as any)?.expression || "0",
                                           },
                                         }
                                       : n
@@ -2752,7 +2743,6 @@ export default function M1WorkspaceClient(): React.JSX.Element {
                                       ? {
                                           ...n,
                                           payload: {
-                                            ...(n.payload as any),
                                             operation: "assignment",
                                             symbolId: (n.payload as any).symbolId || availableAssignTargets[0]?.symbolId || `symbol-${n.id}`,
                                             expression: e.target.value,
@@ -2805,13 +2795,13 @@ export default function M1WorkspaceClient(): React.JSX.Element {
                             Fixed message:
                             <input value={(selected.payload as any).message || ""} placeholder="Area:"
                               onChange={(e) => applyGraph((curr: FlowchartGraph) => ({ ...curr, nodes: curr.nodes.map((n) => n.id === selected.id
-                                ? { ...n, payload: { ...(n.payload as any), message: e.target.value } } : n) }))} />
+                                ? { ...n, payload: { outputId: (n.payload as any)?.outputId || `output-${n.id}`, mode: "formatted", message: e.target.value, expression: (n.payload as any)?.expression || "0" } } : n) }))} />
                           </label>
                           <label className={styles.inspectorField}>
                             Variable / expression:
                             <input value={(selected.payload as any).expression || ""} placeholder="area"
                               onChange={(e) => applyGraph((curr: FlowchartGraph) => ({ ...curr, nodes: curr.nodes.map((n) => n.id === selected.id
-                                ? { ...n, payload: { ...(n.payload as any), expression: e.target.value } } : n) }))} />
+                                ? { ...n, payload: { outputId: (n.payload as any)?.outputId || `output-${n.id}`, mode: "formatted", message: (n.payload as any)?.message || "", expression: e.target.value } } : n) }))} />
                           </label>
                         </>
                       ) : (selected.payload as any).mode === "expression" ? (

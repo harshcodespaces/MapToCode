@@ -882,7 +882,23 @@ export default function IdeWorkspace(): React.JSX.Element {
       storeRef.current = store;
       const list = store.list();
       setSavedProjects(list);
-      if (list.length > 0) {
+
+      const params = new URLSearchParams(window.location.search);
+      const isNew = params.get("new") === "1" || params.get("new") === "true";
+      const sampleKey = params.get("sample");
+
+      if (sampleKey && SAMPLE_FACTORIES[sampleKey]) {
+        const sampleProj = SAMPLE_FACTORIES[sampleKey]();
+        changeProject(sampleProj);
+        try {
+          window.history.replaceState({}, "", "/workspace");
+        } catch {}
+      } else if (isNew) {
+        setActiveModal("newProject");
+        try {
+          window.history.replaceState({}, "", "/workspace");
+        } catch {}
+      } else if (list.length > 0) {
         const currentInList = list.find((p: any) => p.projectId === project?.projectId);
         if (!currentInList) {
           const target = list[0];
@@ -1395,6 +1411,14 @@ export default function IdeWorkspace(): React.JSX.Element {
 
   // Graph manipulation functions
   const addNodeAtPosition = useCallback((kind: string, pos: { x: number; y: number }) => {
+    if (kind === "start") {
+      const hasStart = project.flowchart.nodes.some((n) => n.kind === "start");
+      if (hasStart) {
+        setNotice("⚠️ A Start block already exists. Only one Start block is permitted.");
+        setTimeout(() => setNotice(""), 3000);
+        return;
+      }
+    }
     const id = `${kind}-${Date.now().toString(36)}`;
     let defaultPayload: any = {};
     if (kind === "start" || kind === "end") {
@@ -1501,9 +1525,24 @@ export default function IdeWorkspace(): React.JSX.Element {
 
   const deleteNode = useCallback((id: string) => {
     if (!id) return;
+    const targetNode = project.flowchart.nodes.find((n) => n.id === id);
+    if (!targetNode) return;
+
+    if (targetNode.kind === "start") {
+      setNotice("🗑️ Deleted Start block. You can re-add it from the palette anytime.");
+      setTimeout(() => setNotice(""), 3000);
+    } else if (targetNode.kind === "end") {
+      const remainingEnds = project.flowchart.nodes.filter((n) => n.kind === "end" && n.id !== id);
+      if (remainingEnds.length === 0) {
+        setNotice("🗑️ Deleted End block. You can re-add it from the palette anytime.");
+        setTimeout(() => setNotice(""), 3000);
+      }
+    }
+
     applyGraph((current: FlowchartGraph) => {
-      const targetNode = current.nodes.find((n) => n.id === id);
-      if (!targetNode) return current;
+      const nodeToDelete = current.nodes.find((n) => n.id === id);
+      if (!nodeToDelete) return current;
+
       const nextPositions = { ...current.layout.positions };
       delete nextPositions[id];
       return {
@@ -1518,7 +1557,7 @@ export default function IdeWorkspace(): React.JSX.Element {
     });
     setSelectedNode("");
     setSelectedEdge(null);
-  }, [applyGraph]);
+  }, [applyGraph, project.flowchart.nodes]);
 
   const autoArrangeLayout = useCallback(() => {
     applyGraph((current: FlowchartGraph) => {
@@ -1527,13 +1566,19 @@ export default function IdeWorkspace(): React.JSX.Element {
       if (nodes.length === 0) return current;
 
       const outgoing = new Map<string, FlowchartEdge[]>();
-      nodes.forEach((n) => outgoing.set(n.id, []));
+      const incoming = new Map<string, FlowchartEdge[]>();
+      nodes.forEach((n) => {
+        outgoing.set(n.id, []);
+        incoming.set(n.id, []);
+      });
       edges.forEach((e) => {
         if (outgoing.has(e.from)) outgoing.get(e.from)!.push(e);
+        if (incoming.has(e.to)) incoming.get(e.to)!.push(e);
       });
 
       const startNode = nodes.find((n) => n.kind === "start") || nodes[0];
       const newPositions: Record<string, { x: number; y: number }> = {};
+      const nodeLevels: Record<string, number> = { [startNode.id]: 0 };
       const queue: Array<{ id: string; level: number; xOffset: number }> = [
         { id: startNode.id, level: 0, xOffset: 380 },
       ];
@@ -1544,16 +1589,31 @@ export default function IdeWorkspace(): React.JSX.Element {
         if (visited.has(id)) continue;
         visited.add(id);
 
-        newPositions[id] = { x: xOffset, y: 40 + level * 110 };
+        const isJoinNode = (incoming.get(id)?.length || 0) > 1;
+        const actualX = isJoinNode ? 380 : xOffset;
+
+        newPositions[id] = { x: actualX, y: 40 + level * 110 };
 
         const out = outgoing.get(id) || [];
         if (out.length === 2) {
           const trueEdge = out.find((e) => e.branch === "true") || out[0];
           const falseEdge = out.find((e) => e.branch === "false") || out[1];
-          if (trueEdge) queue.push({ id: trueEdge.to, level: level + 1, xOffset: Math.max(80, xOffset - 170) });
-          if (falseEdge) queue.push({ id: falseEdge.to, level: level + 1, xOffset: xOffset + 170 });
+          if (trueEdge) {
+            const nextLvl = level + 1;
+            nodeLevels[trueEdge.to] = Math.max(nodeLevels[trueEdge.to] || 0, nextLvl);
+            queue.push({ id: trueEdge.to, level: nodeLevels[trueEdge.to], xOffset: Math.max(80, actualX - 170) });
+          }
+          if (falseEdge) {
+            const nextLvl = level + 1;
+            nodeLevels[falseEdge.to] = Math.max(nodeLevels[falseEdge.to] || 0, nextLvl);
+            queue.push({ id: falseEdge.to, level: nodeLevels[falseEdge.to], xOffset: actualX + 170 });
+          }
         } else if (out.length === 1) {
-          queue.push({ id: out[0].to, level: level + 1, xOffset });
+          const targetId = out[0].to;
+          const targetIsJoin = (incoming.get(targetId)?.length || 0) > 1;
+          const nextLvl = level + 1;
+          nodeLevels[targetId] = Math.max(nodeLevels[targetId] || 0, nextLvl);
+          queue.push({ id: targetId, level: nodeLevels[targetId], xOffset: targetIsJoin ? 380 : actualX });
         }
       }
 
@@ -1569,9 +1629,11 @@ export default function IdeWorkspace(): React.JSX.Element {
       if (endNodes.length === 1) {
         newPositions[endNodes[0].id] = { x: 380, y: maxNonEndY + 110 };
       } else {
-        endNodes.forEach((endN) => {
+        endNodes.forEach((endN, idx) => {
           if (!newPositions[endN.id]) {
-            newPositions[endN.id] = { x: 380, y: maxNonEndY + 110 };
+            const spacing = 180;
+            const startX = 380 - ((endNodes.length - 1) * spacing) / 2;
+            newPositions[endN.id] = { x: startX + idx * spacing, y: maxNonEndY + 110 };
           }
         });
       }
@@ -2134,6 +2196,11 @@ export default function IdeWorkspace(): React.JSX.Element {
   };
 
   const duplicateNode = useCallback((node: FlowchartNode) => {
+    if (node.kind === "start") {
+      setNotice("⚠️ Cannot duplicate Start block. Every flowchart must have exactly one Start block.");
+      setTimeout(() => setNotice(""), 3000);
+      return;
+    }
     const currentPos = project.flowchart.layout.positions[node.id] || { x: 380, y: 150 };
     const newPos = { x: currentPos.x + 40, y: currentPos.y + 40 };
     const newId = `${node.kind}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
@@ -2185,6 +2252,11 @@ export default function IdeWorkspace(): React.JSX.Element {
   const copySelectedNode = useCallback(() => {
     const node = project.flowchart.nodes.find((item) => item.id === selectedNode);
     if (!node) return false;
+    if (node.kind === "start") {
+      setNotice("⚠️ Cannot copy Start block. A flowchart can only have one Start block.");
+      setTimeout(() => setNotice(""), 3000);
+      return false;
+    }
     copiedNodeRef.current = structuredClone(node);
     setNotice(`📋 Copied ${node.kind} block. Press Ctrl+V to paste.`);
     setTimeout(() => setNotice(""), 2500);
@@ -2198,8 +2270,15 @@ export default function IdeWorkspace(): React.JSX.Element {
   }, [duplicateNode]);
 
   const cutSelectedNode = useCallback(() => {
+    const node = project.flowchart.nodes.find((item) => item.id === selectedNode);
+    if (!node) return;
+    if (node.kind === "start") {
+      setNotice("⚠️ Cannot cut Start block. A flowchart must have one Start block.");
+      setTimeout(() => setNotice(""), 3000);
+      return;
+    }
     if (copySelectedNode()) deleteNode(selectedNode);
-  }, [copySelectedNode, deleteNode, selectedNode]);
+  }, [copySelectedNode, deleteNode, selectedNode, project.flowchart.nodes]);
 
   // Full Global IDE Keyboard Shortcuts (VS Code-style)
   useEffect(() => {
@@ -2551,20 +2630,38 @@ export default function IdeWorkspace(): React.JSX.Element {
     handleCancelNewItem,
   ]);
 
+  const hasStartNode = project.flowchart.nodes.some((n) => n.kind === "start");
+
   const renderBlocksContent = () => (
     <>
       {/* 1. Start */}
       <div
-        className={styles.blockCard}
-        draggable
-        onDragStart={(e) => e.dataTransfer.setData("application/maptocode-node", "start")}
-        onClick={() => addNode("start")}
-        title="Start Block"
+        className={`${styles.blockCard} ${hasStartNode ? styles.blockCardDisabled : ""}`}
+        draggable={!hasStartNode}
+        onDragStart={(e) => {
+          if (hasStartNode) {
+            e.preventDefault();
+            setNotice("⚠️ A Start block already exists. Only one Start block is permitted.");
+            setTimeout(() => setNotice(""), 3000);
+            return;
+          }
+          e.dataTransfer.setData("application/maptocode-node", "start");
+        }}
+        onClick={() => {
+          if (hasStartNode) {
+            setNotice("⚠️ A Start block already exists. Only one Start block is permitted.");
+            setTimeout(() => setNotice(""), 3000);
+          } else {
+            addNode("start");
+          }
+        }}
+        title={hasStartNode ? "Start block already added (only 1 permitted)" : "Start Block"}
+        style={hasStartNode ? { opacity: 0.5, cursor: "not-allowed" } : undefined}
       >
         <div className={styles.blockShape}>
           <div className={styles.shapePill} />
         </div>
-        <span className={styles.blockLabel}>Start</span>
+        <span className={styles.blockLabel}>Start {hasStartNode ? "✓" : ""}</span>
       </div>
 
       {/* 2. End */}
@@ -2664,8 +2761,21 @@ export default function IdeWorkspace(): React.JSX.Element {
 
         {showAddBlockMenu && (
           <div className={styles.dropdown} style={{ width: "100%", top: "42px" }}>
-            <button type="button" className={styles.dropdownItem} onClick={() => { addNode("start"); setShowAddBlockMenu(false); }}>
-              <span>🟢 Start Block</span>
+            <button
+              type="button"
+              className={styles.dropdownItem}
+              onClick={() => {
+                if (hasStartNode) {
+                  setNotice("⚠️ A Start block already exists. Only one Start block is permitted.");
+                  setTimeout(() => setNotice(""), 3000);
+                } else {
+                  addNode("start");
+                }
+                setShowAddBlockMenu(false);
+              }}
+              style={hasStartNode ? { opacity: 0.5, cursor: "not-allowed" } : undefined}
+            >
+              <span>🟢 Start Block {hasStartNode ? "(Added)" : ""}</span>
             </button>
             <button type="button" className={styles.dropdownItem} onClick={() => { addNode("input"); setShowAddBlockMenu(false); }}>
               <span>🔵 Input Block</span>
@@ -2719,7 +2829,7 @@ export default function IdeWorkspace(): React.JSX.Element {
                   applyGraph((cur: FlowchartGraph) => ({
                     ...cur,
                     nodes: cur.nodes.map((n) =>
-                      n.id === selectedNodeObj.id ? { ...n, payload: { ...n.payload, condition: val } } : n
+                      n.id === selectedNodeObj.id ? { ...n, payload: { condition: val } } : n
                     ),
                   }));
                 }}
@@ -2741,7 +2851,15 @@ export default function IdeWorkspace(): React.JSX.Element {
                       ...cur,
                       nodes: cur.nodes.map((n) =>
                         n.id === selectedNodeObj.id
-                          ? { ...n, payload: { ...n.payload, name: val, symbolId: `symbol-${val || n.id}` } }
+                          ? {
+                              ...n,
+                              payload: {
+                                symbolId: `symbol-${val || n.id}`,
+                                name: val,
+                                type: (n.payload as any)?.type || "int",
+                                prompt: (n.payload as any)?.prompt || `Enter ${val || n.id}: `,
+                              },
+                            }
                           : n
                       ),
                     }));
@@ -2758,7 +2876,17 @@ export default function IdeWorkspace(): React.JSX.Element {
                     applyGraph((cur: FlowchartGraph) => ({
                       ...cur,
                       nodes: cur.nodes.map((n) =>
-                        n.id === selectedNodeObj.id ? { ...n, payload: { ...n.payload, type: val } } : n
+                        n.id === selectedNodeObj.id
+                          ? {
+                              ...n,
+                              payload: {
+                                symbolId: (n.payload as any)?.symbolId || `symbol-${(n.payload as any)?.name || n.id}`,
+                                name: (n.payload as any)?.name || "x",
+                                type: val,
+                                prompt: (n.payload as any)?.prompt || `Enter ${(n.payload as any)?.name || "value"}: `,
+                              },
+                            }
+                          : n
                       ),
                     }));
                   }}
@@ -2779,7 +2907,17 @@ export default function IdeWorkspace(): React.JSX.Element {
                     applyGraph((cur: FlowchartGraph) => ({
                       ...cur,
                       nodes: cur.nodes.map((n) =>
-                        n.id === selectedNodeObj.id ? { ...n, payload: { ...n.payload, prompt: val } } : n
+                        n.id === selectedNodeObj.id
+                          ? {
+                              ...n,
+                              payload: {
+                                symbolId: (n.payload as any)?.symbolId || `symbol-${(n.payload as any)?.name || n.id}`,
+                                name: (n.payload as any)?.name || "x",
+                                type: (n.payload as any)?.type || "int",
+                                prompt: val,
+                              },
+                            }
+                          : n
                       ),
                     }));
                   }}
@@ -2798,7 +2936,15 @@ export default function IdeWorkspace(): React.JSX.Element {
                     applyGraph((cur: FlowchartGraph) => ({
                       ...cur,
                       nodes: cur.nodes.map((n) => n.id === selectedNodeObj.id
-                        ? { ...n, payload: { ...(n.payload as any), symbolId: `symbol-${name || n.id}`, name } }
+                        ? {
+                            ...n,
+                            payload: {
+                              symbolId: `symbol-${name || n.id}`,
+                              name,
+                              type: (n.payload as any)?.type || "int",
+                              initializer: (n.payload as any)?.initializer || "0",
+                            },
+                          }
                         : n),
                     }));
                   }} />
@@ -2811,7 +2957,15 @@ export default function IdeWorkspace(): React.JSX.Element {
                     applyGraph((cur: FlowchartGraph) => ({
                       ...cur,
                       nodes: cur.nodes.map((n) => n.id === selectedNodeObj.id
-                        ? { ...n, payload: { ...(n.payload as any), type } }
+                        ? {
+                            ...n,
+                            payload: {
+                              symbolId: (n.payload as any)?.symbolId || `symbol-${(n.payload as any)?.name || n.id}`,
+                              name: (n.payload as any)?.name || "value",
+                              type,
+                              initializer: (n.payload as any)?.initializer || "0",
+                            },
+                          }
                         : n),
                     }));
                   }}>
@@ -2826,7 +2980,15 @@ export default function IdeWorkspace(): React.JSX.Element {
                     applyGraph((cur: FlowchartGraph) => ({
                       ...cur,
                       nodes: cur.nodes.map((n) => n.id === selectedNodeObj.id
-                        ? { ...n, payload: { ...(n.payload as any), initializer } }
+                        ? {
+                            ...n,
+                            payload: {
+                              symbolId: (n.payload as any)?.symbolId || `symbol-${(n.payload as any)?.name || n.id}`,
+                              name: (n.payload as any)?.name || "value",
+                              type: (n.payload as any)?.type || "int",
+                              initializer,
+                            },
+                          }
                         : n),
                     }));
                   }} />
@@ -2868,8 +3030,13 @@ export default function IdeWorkspace(): React.JSX.Element {
                       placeholder="x + 1"
                       onChange={(e) => {
                         const val = e.target.value;
-                        const fullAssignment = val.match(/^(.+?)\s*(?:←|<-)\s*([A-Za-z_][A-Za-z0-9_]*)$/)
-                          || val.match(/^(.+?)\s*=\s*([A-Za-z_][A-Za-z0-9_]*)$/);
+                        const standardAssignment = val.match(/^([A-Za-z_][A-Za-z0-9_]*)\s*(?:←|<-|=)\s*(.+)$/);
+                        const legacyAssignment = !standardAssignment && (
+                          val.match(/^(.+?)\s*(?:←|<-)\s*([A-Za-z_][A-Za-z0-9_]*)$/)
+                          || val.match(/^(.+?)\s*=\s*([A-Za-z_][A-Za-z0-9_]*)$/)
+                        );
+                        const targetName = standardAssignment ? standardAssignment[1].trim() : legacyAssignment ? legacyAssignment[2].trim() : null;
+                        const exprStr = standardAssignment ? standardAssignment[2].trim() : legacyAssignment ? legacyAssignment[1].trim() : val;
                         applyGraph((cur: FlowchartGraph) => ({
                           ...cur,
                           nodes: cur.nodes.map((n) =>
@@ -2878,10 +3045,10 @@ export default function IdeWorkspace(): React.JSX.Element {
                                   ...n,
                                   payload: {
                                     operation: "assignment",
-                                    symbolId: fullAssignment
-                                      ? `symbol-${fullAssignment[2]}`
+                                    symbolId: targetName
+                                      ? `symbol-${targetName}`
                                       : (n.payload as any)?.symbolId || `symbol-${n.id}`,
-                                    expression: fullAssignment ? fullAssignment[1].trim() : val,
+                                    expression: exprStr,
                                   },
                                 }
                               : n
@@ -2934,7 +3101,7 @@ export default function IdeWorkspace(): React.JSX.Element {
                       onChange={(e) => {
                         const message = e.target.value;
                         applyGraph((cur: FlowchartGraph) => ({ ...cur, nodes: cur.nodes.map((n) => n.id === selectedNodeObj.id
-                          ? { ...n, payload: { ...(n.payload as any), message } } : n) }));
+                          ? { ...n, payload: { outputId: (n.payload as any)?.outputId || `output-${n.id}`, mode: "formatted", message, expression: (n.payload as any)?.expression || "0" } } : n) }));
                       }} />
                   </label>
                   <label className={styles.inspectorField}>
@@ -2943,7 +3110,7 @@ export default function IdeWorkspace(): React.JSX.Element {
                       onChange={(e) => {
                         const expression = e.target.value;
                         applyGraph((cur: FlowchartGraph) => ({ ...cur, nodes: cur.nodes.map((n) => n.id === selectedNodeObj.id
-                          ? { ...n, payload: { ...(n.payload as any), expression } } : n) }));
+                          ? { ...n, payload: { outputId: (n.payload as any)?.outputId || `output-${n.id}`, mode: "formatted", message: (n.payload as any)?.message || "", expression } } : n) }));
                       }} />
                   </label>
                 </>
@@ -2960,8 +3127,8 @@ export default function IdeWorkspace(): React.JSX.Element {
                       applyGraph((cur: FlowchartGraph) => ({ ...cur, nodes: cur.nodes.map((n) =>
                         n.id === selectedNodeObj.id
                           ? (n.payload as any)?.mode === "message"
-                            ? { ...n, payload: { ...(n.payload as any), message: val } }
-                            : { ...n, payload: { ...(n.payload as any), expression: val } }
+                            ? { ...n, payload: { outputId: (n.payload as any)?.outputId || `output-${n.id}`, mode: "message", message: val } }
+                            : { ...n, payload: { outputId: (n.payload as any)?.outputId || `output-${n.id}`, mode: "expression", expression: val } }
                           : n
                       ) }));
                     }} />

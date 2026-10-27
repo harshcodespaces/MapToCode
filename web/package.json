@@ -9,7 +9,7 @@
     "start": "next start -H 0.0.0.0 -p 3000",
     "lint": "eslint",
     "type-check": "tsc --noEmit",
-    "test": "node --test tests/contracts.test.js tests/ast.test.js tests/adapters.test.js tests/reconciliation.test.js tests/generation.test.js tests/project-service.test.js tests/flowchart-explanation.test.js tests/workflows.test.js tests/trace-engine.test.js tests/reconciliation-sync.test.js tests/workspace-files.test.js tests/pseudocode-parser.test.js tests/java-generator.test.js"
+    "test": "node --test tests/contracts.test.js tests/ast.test.js tests/adapters.test.js tests/reconciliation.test.js tests/generation.test.js tests/project-service.test.js tests/flowchart-explanation.test.js tests/workflows.test.js tests/trace-engine.test.js tests/reconciliation-sync.test.js tests/workspace-files.test.js tests/pseudocode-parser.test.js tests/java-generator.test.js tests/flowchart-file.test.js"
   },
   "dependencies": {
     "ajv": "^8.20.0",

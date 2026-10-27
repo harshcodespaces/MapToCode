@@ -53,8 +53,25 @@ function tokenize(source) {
     }
     const identifier = /^[A-Za-z_][A-Za-z0-9_]*/.exec(rest);
     if (identifier) {
-      tokens.push({ type: "identifier", value: identifier[0], offset: start });
-      index += identifier[0].length;
+      const raw = identifier[0];
+      const lower = raw.toLowerCase();
+      if (lower === "and") {
+        tokens.push({ type: "operator", value: "&&", offset: start });
+        index += raw.length;
+        continue;
+      }
+      if (lower === "or") {
+        tokens.push({ type: "operator", value: "||", offset: start });
+        index += raw.length;
+        continue;
+      }
+      if (lower === "not") {
+        tokens.push({ type: "operator", value: "!", offset: start });
+        index += raw.length;
+        continue;
+      }
+      tokens.push({ type: "identifier", value: raw, offset: start });
+      index += raw.length;
       continue;
     }
     if (rest.startsWith("++")) {
@@ -121,6 +138,9 @@ export function parseExpression(source, { idPrefix = "expression" } = {}) {
     if (token?.type === "operator" && ["+", "-", "!"].includes(token.value)) {
       take();
       if (!peek()) throw new ExpressionSyntaxError(`“${token.value}” needs a value after it.`, source.length);
+      if (token.value === "!") {
+        return { id: nextId(), kind: "UnaryExpression", operator: "!", operand: binary(3) };
+      }
       return { id: nextId(), kind: "UnaryExpression", operator: token.value, operand: unary() };
     }
     return primary();

@@ -202,7 +202,7 @@ export function deriveSpecificationFromFlowchart(flowchart, baseSpecification = 
             kind: "output",
             payload: {
               outputId,
-              mode: "value",
+              mode: "expression",
               expression: payload.expression,
             },
           });

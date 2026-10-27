@@ -270,9 +270,17 @@ function graphMaps(graph) {
 
 function flowchartAssignment(payload = {}) {
   const rawExpression = String(payload.expression ?? "").trim();
-  const combined = rawExpression.match(/^(.+?)\s*(?:←|<-)\s*([A-Za-z_][A-Za-z0-9_]*)$/)
+  // Standard assignment: target = expression or target ← expression
+  const standard = rawExpression.match(/^([A-Za-z_][A-Za-z0-9_]*)\s*(?:←|<-|=)\s*(.+)$/);
+  if (standard) {
+    return { target: standard[1].trim(), expression: standard[2].trim(), embeddedTarget: true };
+  }
+  // Legacy reversed assignment fallback: expression ← target or expression = target
+  const legacy = rawExpression.match(/^(.+?)\s*(?:←|<-)\s*([A-Za-z_][A-Za-z0-9_]*)$/)
     || rawExpression.match(/^(.+?)\s*=\s*([A-Za-z_][A-Za-z0-9_]*)$/);
-  if (combined) return { target: combined[2], expression: combined[1].trim(), embeddedTarget: true };
+  if (legacy) {
+    return { target: legacy[2], expression: legacy[1].trim(), embeddedTarget: true };
+  }
   const symbolName = typeof payload.symbolId === "string" ? payload.symbolId.replace(/^symbol-/, "") : "";
   return { target: payload.target || payload.name || symbolName, expression: rawExpression, embeddedTarget: false };
 }
@@ -295,7 +303,7 @@ function normalizeLegacyFlowchart(flowchart) {
       return { ...node, kind: "initialization", payload: {
         symbolId: payload.symbolId || `symbol-${name}`, name,
         type: ["int", "double", "char"].includes(payload.type) ? payload.type : "int",
-        ...(payload.initializer ? { initializer: String(payload.initializer) } : {}),
+        initializer: String(payload.initializer || "0").trim() || "0",
       } };
     }
     if (node.kind === "process") {
@@ -304,18 +312,18 @@ function normalizeLegacyFlowchart(flowchart) {
       const symbolId = assignment.embeddedTarget || (assignment.target && storedSymbolName && storedSymbolName !== assignment.target)
         ? `symbol-${assignment.target}`
         : payload.symbolId || `symbol-${assignment.target || node.id}`;
-      return { ...node, payload: { operation: "assignment", symbolId, expression: assignment.expression } };
+      return { ...node, payload: { operation: "assignment", symbolId, expression: assignment.expression || "0" } };
     }
     if (node.kind === "output") {
       const outputId = String(payload.outputId || `output-${node.id}`);
       if (payload.mode === "formatted") return { ...node, payload: {
-        outputId, mode: "formatted", message: String(payload.message ?? ""), expression: String(payload.expression ?? ""),
+        outputId, mode: "formatted", message: String(payload.message ?? ""), expression: String(payload.expression ?? "0").trim() || "0",
       } };
       return payload.mode === "message"
         ? { ...node, payload: { outputId, mode: "message", message: String(payload.message ?? payload.expression ?? "") } }
-        : { ...node, payload: { outputId, mode: "expression", expression: String(payload.expression ?? payload.message ?? "") } };
+        : { ...node, payload: { outputId, mode: "expression", expression: String(payload.expression ?? payload.message ?? "0").trim() || "0" } };
     }
-    if (node.kind === "decision") return { ...node, payload: { condition: String(payload.condition || "") } };
+    if (node.kind === "decision") return { ...node, payload: { condition: String(payload.condition || "true").trim() || "true" } };
     return node;
   });
   return {
@@ -435,12 +443,15 @@ export function adaptFlowchartToAst(flowchart, { projectId } = {}) {
       id: stableAstId("flowchart", node.id, "declaration"), kind: "VariableDeclaration", symbolId: symId,
     }, node.id, "input-node-to-variable-declaration"));
   }
-  const inputSymbolIds = new Set(flowchart.nodes.filter((item) => item.kind === "input").map((item) => item.payload?.symbolId || `symbol-${item.payload?.name || item.id}`));
+  const declaredSymbolIds = new Set([
+    ...flowchart.nodes.filter((item) => item.kind === "input").map((item) => item.payload?.symbolId || `symbol-${item.payload?.name || item.id}`),
+    ...flowchart.nodes.filter((item) => item.kind === "initialization").map((item) => item.payload?.symbolId || `symbol-${item.payload?.name || item.id}`),
+  ]);
   const declaredProcessTargets = new Set();
   for (const node of flowchart.nodes.filter((item) => item.kind === "process")) {
     const assignment = flowchartAssignment(node.payload);
     const symId = symbolByName.get(assignment.target);
-    if (symId && !inputSymbolIds.has(symId) && !declaredProcessTargets.has(symId)) {
+    if (symId && !declaredSymbolIds.has(symId) && !declaredProcessTargets.has(symId)) {
       declaredProcessTargets.add(symId);
       body.statements.push(recordStatement(builder, {
         id: stableAstId("flowchart", node.id, "assignment-target-declaration"), kind: "VariableDeclaration", symbolId: symId,

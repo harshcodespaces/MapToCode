@@ -130,11 +130,12 @@ export function parsePseudocodeToFlowchart(text, projectId = "parsed-project") {
       } else if (line.includes("=") || line.includes("←") || line.includes("<-")) {
         // [SET] target = expr, or the legacy learner form expr ← target.
         const clean = line.replace(/^SET\s+/i, "").trim();
-        const arrowMatch = clean.match(/^(.+?)\s*(?:←|<-)\s*([A-Za-z_][A-Za-z0-9_]*)$/);
+        const standardArrowMatch = clean.match(/^([A-Za-z_][A-Za-z0-9_]*)\s*(?:←|<-)\s*(.+)$/);
         const equalsMatch = clean.match(/^([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.+)$/);
+        const legacyArrowMatch = clean.match(/^(.+?)\s*(?:←|<-)\s*([A-Za-z_][A-Za-z0-9_]*)$/);
         const reverseEqualsMatch = clean.match(/^(.+?)\s*=\s*([A-Za-z_][A-Za-z0-9_]*)$/);
-        const target = arrowMatch?.[2] || equalsMatch?.[1] || reverseEqualsMatch?.[2] || "";
-        const expression = arrowMatch?.[1] || equalsMatch?.[2] || reverseEqualsMatch?.[1] || "";
+        const target = standardArrowMatch?.[1] || equalsMatch?.[1] || legacyArrowMatch?.[2] || reverseEqualsMatch?.[2] || "";
+        const expression = standardArrowMatch?.[2] || equalsMatch?.[2] || legacyArrowMatch?.[1] || reverseEqualsMatch?.[1] || "";
 
         if (!target || !expression) {
           return { success: false, error: `Invalid assignment on line: “${line}”. Use “target = expression”.`, flowchart: null };

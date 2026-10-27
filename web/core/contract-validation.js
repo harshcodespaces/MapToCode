@@ -10,7 +10,7 @@ import {
 import { createDiagnostic } from "./diagnostics.js";
 
 const schemas = [diagnosticSchema, astSchema, specificationSchema, flowchartSchema, projectSchema];
-const ajv = new Ajv2020({ allErrors: true, strict: true });
+const ajv = new Ajv2020({ allErrors: true, strict: true, discriminator: true });
 ajv.addFormat("uuid", /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i);
 ajv.addFormat("date-time", {
   type: "string",
@@ -28,20 +28,173 @@ const validators = {
 };
 const RESERVED_C_NAMES = new Set("auto break case char const continue default do double else enum extern float for goto if inline int long register restrict return short signed sizeof static struct switch typedef union unsigned void volatile while _Alignas _Alignof _Atomic _Bool _Complex _Generic _Imaginary _Noreturn _Static_assert _Thread_local main printf scanf".split(" "));
 
-function schemaMessage(error, label) {
-  const location = error.instancePath || "the document";
+function formatDiagnosticItem(error, label, value) {
+  const path = error.instancePath || "";
+  const nodeMatch = path.match(/^(?:\/flowchart)?\/nodes\/(\d+)(?:\/(.*))?$/);
+  if (nodeMatch) {
+    const nodeIndex = parseInt(nodeMatch[1], 10);
+    const subPath = nodeMatch[2] || "";
+    const nodes = value?.flowchart?.nodes || value?.nodes;
+    const node = Array.isArray(nodes) ? nodes[nodeIndex] : null;
+    const nodeId = node?.id ? `“${node.id}”` : `#${nodeIndex}`;
+    const nodeKind = node?.kind ? ` (${node.kind})` : "";
+    const revision = value?.flowchart?.revision ?? value?.revision ?? 1;
+    const sourceRefs = node?.id ? [{ sourceKind: "flowchart", sourceObjectId: node.id, sourceRevision: revision }] : [];
+
+    if (error.keyword === "discriminator") {
+      if (error.params?.tag === "kind") {
+        const val = error.params?.tagValue !== undefined ? `“${error.params.tagValue}”` : "undefined";
+        return {
+          message: `Flowchart block ${nodeId} has unsupported kind ${val}. Supported kinds are: start, end, process, initialization, input, output, decision.`,
+          sourceRefs,
+        };
+      }
+      if (error.params?.tag === "operation") {
+        return {
+          message: `Flowchart block ${nodeId}${nodeKind} is missing required operation property ('assignment' or 'declaration').`,
+          sourceRefs,
+        };
+      }
+      if (error.params?.tag === "mode") {
+        return {
+          message: `Flowchart block ${nodeId}${nodeKind} is missing required output mode ('message', 'expression', or 'formatted').`,
+          sourceRefs,
+        };
+      }
+    }
+    if (error.keyword === "required") {
+      return {
+        message: `Flowchart block ${nodeId}${nodeKind} is missing required property “${error.params?.missingProperty}”.`,
+        sourceRefs,
+      };
+    }
+    if (error.keyword === "additionalProperties") {
+      return {
+        message: `Flowchart block ${nodeId}${nodeKind} has unsupported property “${error.params?.additionalProperty}”.`,
+        sourceRefs,
+      };
+    }
+    if (error.keyword === "maxProperties" && subPath === "payload") {
+      return {
+        message: `Flowchart block ${nodeId}${nodeKind} payload must be empty.`,
+        sourceRefs,
+      };
+    }
+    if (error.keyword === "minLength") {
+      const propName = subPath.split("/").pop() || "field";
+      return {
+        message: `Flowchart block ${nodeId}${nodeKind} property “${propName}” must not be empty.`,
+        sourceRefs,
+      };
+    }
+    if (error.keyword === "enum") {
+      const propName = subPath.split("/").pop() || "field";
+      const allowed = (error.params?.allowedValues || []).join(", ");
+      return {
+        message: `Flowchart block ${nodeId}${nodeKind} property “${propName}” must be one of: ${allowed}.`,
+        sourceRefs,
+      };
+    }
+    if (error.keyword === "const") {
+      const propName = subPath.split("/").pop() || "field";
+      return {
+        message: `Flowchart block ${nodeId}${nodeKind} property “${propName}” must be equal to “${error.params?.allowedValue}”.`,
+        sourceRefs,
+      };
+    }
+    return {
+      message: `${label} block ${nodeId}${nodeKind} ${subPath ? `${subPath} ` : ""}${error.message || "is invalid"}.`,
+      sourceRefs,
+    };
+  }
+
+  const edgeMatch = path.match(/^(?:\/flowchart)?\/edges\/(\d+)(?:\/(.*))?$/);
+  if (edgeMatch) {
+    const edgeIndex = parseInt(edgeMatch[1], 10);
+    const edges = value?.flowchart?.edges || value?.edges;
+    const edge = Array.isArray(edges) ? edges[edgeIndex] : null;
+    const edgeId = edge?.id ? `“${edge.id}”` : `#${edgeIndex}`;
+    return {
+      message: `${label} connection ${edgeId} ${error.message || "is invalid"}.`,
+      sourceRefs: [],
+    };
+  }
+
+  const location = path || "the document";
   const detail = error.message || "does not match the required shape";
-  return `${label} ${location} ${detail}.`;
+  return {
+    message: `${label} ${location} ${detail}.`,
+    sourceRefs: [],
+  };
+}
+
+function deduplicateSchemaErrors(errors, value) {
+  if (!Array.isArray(errors) || errors.length <= 1) return errors ?? [];
+
+  // Group errors by instance path prefix up to node level (e.g. /nodes/1)
+  const byPrefix = new Map();
+  for (const err of errors) {
+    const match = (err.instancePath || "").match(/^((?:\/flowchart)?\/nodes\/\d+)/);
+    const prefix = match ? match[1] : (err.instancePath || "root");
+    if (!byPrefix.has(prefix)) byPrefix.set(prefix, []);
+    byPrefix.get(prefix).push(err);
+  }
+
+  const result = [];
+  for (const [prefix, group] of byPrefix.entries()) {
+    if (group.length === 1) {
+      result.push(group[0]);
+      continue;
+    }
+
+    // If there are specific leaf errors (e.g. required, additionalProperties, discriminator, minLength),
+    // drop redundant generic 'oneOf' container errors
+    const hasSpecific = group.some((e) => ["required", "additionalProperties", "discriminator", "minLength", "enum", "type"].includes(e.keyword));
+    const filteredGroup = hasSpecific
+      ? group.filter((e) => e.keyword !== "oneOf")
+      : group;
+
+    // Filter out spurious const errors on other branches when kind is known
+    const nodeIndexMatch = prefix.match(/nodes\/(\d+)$/);
+    if (nodeIndexMatch) {
+      const idx = parseInt(nodeIndexMatch[1], 10);
+      const nodes = value?.flowchart?.nodes || value?.nodes;
+      const node = Array.isArray(nodes) ? nodes[idx] : null;
+      if (node?.kind) {
+        const withoutOtherBranches = filteredGroup.filter((e) => {
+          if (e.keyword === "const" && e.instancePath.endsWith("/kind") && e.params?.allowedValue !== node.kind) {
+            return false;
+          }
+          return true;
+        });
+        if (withoutOtherBranches.length > 0) {
+          result.push(...withoutOtherBranches);
+          continue;
+        }
+      }
+    }
+
+    result.push(...filteredGroup);
+  }
+
+  return result;
 }
 
 function schemaDiagnostics(validator, value, code, label) {
   if (validator(value)) return [];
-  return (validator.errors ?? []).map((error) => createDiagnostic({
-    code,
-    category: "schema",
-    message: schemaMessage(error, label),
-    suggestion: "Check the document version, required fields, and field types.",
-  }));
+  const rawErrors = validator.errors ?? [];
+  const cleanedErrors = deduplicateSchemaErrors(rawErrors, value);
+
+  return cleanedErrors.map((error) => {
+    const { message, sourceRefs } = formatDiagnosticItem(error, label, value);
+    return createDiagnostic({
+      code,
+      category: "schema",
+      message,
+      suggestion: "Check the document version, required fields, and field types.",
+      sourceRefs,
+    });
+  });
 }
 
 function invariant(code, category, message, sourceRefs = []) {
