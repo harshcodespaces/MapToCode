@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import BrandMark from "@/components/common/BrandMark";
+import FeedbackButton from "@/components/common/FeedbackButton";
 import styles from "./page.module.css";
 
 export interface SampleProject {
@@ -713,6 +714,7 @@ export default function Home(): React.JSX.Element {
           </div>
         </div>
       )}
+      <FeedbackButton />
     </div>
   );
 }
