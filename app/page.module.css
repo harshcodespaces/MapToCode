@@ -119,7 +119,7 @@
 
 .openWorkspaceNavBtn,
 .signInBtn {
-  background: #142820;
+  background: var(--forest-primary);
   color: #FFFFFF;
   padding: 8px 18px;
   border-radius: var(--radius-pill);
@@ -134,7 +134,7 @@
 }
 
 .signInBtn:hover {
-  background: #1E3D31;
+  background: var(--forest-hover);
   transform: translateY(-1px);
 }
 

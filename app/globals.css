@@ -23,9 +23,9 @@
   --blue-line: #BDD8F7;
   --purple-soft: #F6EFFB;
   --purple-line: #DEC7F0;
-  --font-display: Georgia, "Times New Roman", serif;
-  --font-body: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-  --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  --font-display: var(--font-display-loaded), "Segoe UI", sans-serif;
+  --font-body: var(--font-body-loaded), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+  --font-mono: var(--font-mono-loaded), ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   --radius-sm: 6px;
   --radius-md: 10px;
   --radius-lg: 14px;
