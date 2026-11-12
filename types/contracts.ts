@@ -132,7 +132,22 @@ export interface IfStatement {
   elseBlock: AstBlock;
 }
 
-export type AstStatement = VariableDeclaration | Assignment | Input | MessageOutput | ValueOutput | FormattedOutput | IfStatement;
+export interface WhileStatement {
+  id: string;
+  kind: "WhileStatement";
+  condition: AstExpression;
+  body: AstBlock;
+}
+
+export type AstStatement =
+  | VariableDeclaration
+  | Assignment
+  | Input
+  | MessageOutput
+  | ValueOutput
+  | FormattedOutput
+  | IfStatement
+  | WhileStatement;
 
 export interface AstBlock {
   id: string;
@@ -212,6 +227,15 @@ export interface ConditionalStep {
   };
 }
 
+export interface WhileStep {
+  id: string;
+  kind: "while";
+  payload: {
+    condition: string;
+    body: SpecificationStep[];
+  };
+}
+
 export type SpecificationStep =
   | DeclarationStep
   | AssignmentStep
@@ -219,7 +243,8 @@ export type SpecificationStep =
   | MessageOutputStep
   | ExpressionOutputStep
   | FormattedOutputStep
-  | ConditionalStep;
+  | ConditionalStep
+  | WhileStep;
 
 export interface AlgorithmSpecification {
   schemaVersion: "1.0.0";

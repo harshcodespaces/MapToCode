@@ -566,7 +566,84 @@ export function generateAstTrace(ast, inputs = {}, options = {}) {
       }
       return;
     }
+          if (stmt.kind === "WhileStatement") {
+        let iterations = 0;
 
+        while (true) {
+          if (snapshots.length >= maxSteps) {
+            throw new Error(
+              `Execution step limit exceeded (${maxSteps} steps). Possible infinite loop.`
+            );
+          }
+
+          const conditionVal =
+            evaluateExpression(
+              stmt.condition,
+              currentEnv,
+              symbolsById
+            );
+
+          const isTrue =
+            Boolean(conditionVal);
+
+          const conditionText =
+            formatExpression(
+              stmt.condition,
+              symbolsById
+            );
+
+          pushSnapshot({
+            astNodeId: stmt.id,
+            action: "decision",
+            decision: {
+              conditionText,
+              result: isTrue,
+              branch: isTrue
+                ? "true"
+                : "false",
+              branchTaken: isTrue
+                ? "true"
+                : "false",
+            },
+            context: {
+              conditionText,
+              conditionResult:
+                isTrue,
+              branchTaken:
+                isTrue
+                  ? "true"
+                  : "false",
+              whatNext: isTrue
+                ? "Condition is TRUE. Executing the loop body."
+                : "Condition is FALSE. Exiting the loop.",
+            },
+          });
+
+          if (!isTrue) {
+            break;
+          }
+
+          iterations += 1;
+
+          if (
+            iterations > maxSteps
+          ) {
+            throw new Error(
+              `WHILE loop exceeded the maximum iteration limit (${maxSteps}). Possible infinite loop.`
+            );
+          }
+
+          executeBlock(
+            stmt.body
+          );
+
+          if (hasRuntimeError) {
+            return;
+          }
+        }
+
+        return;
+      }
     throw new Error(`Unsupported statement kind in trace engine: ${stmt.kind}`);
   }
 

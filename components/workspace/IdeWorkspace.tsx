@@ -124,55 +124,44 @@ interface ExplorerFolder {
 }
 
 export default function IdeWorkspace(): React.JSX.Element {
-  // Main Project State: initialize from existing saved projects or start fresh
-  const [project, setProject] = useState<ProjectEnvelope>(() => {
-    if (typeof window !== "undefined") {
-      try {
-        const store = createProjectStore(window.localStorage);
-        const list = store.list();
-        if (list.length > 0) return list[0];
-        const fresh = createProject({ name: "My First Algorithm" }) as unknown as ProjectEnvelope;
-        store.save(fresh);
-        return fresh;
-      } catch {}
-    }
-    return createProject({ name: "My First Algorithm" }) as unknown as ProjectEnvelope;
-  });
+  // Main Project State
+  // IMPORTANT: Keep the initial render deterministic so that
+  // server HTML and client HTML are identical during hydration.
+  const [project, setProject] = useState<ProjectEnvelope>(() =>
+    createProject({
+      name: "My First Algorithm",
+    }) as unknown as ProjectEnvelope
+  );
+
   const [savedProjects, setSavedProjects] = useState<ProjectEnvelope[]>([]);
   const storeRef = useRef<any>(null);
-  const graphHistory = useRef<{ past: FlowchartGraph[]; future: FlowchartGraph[] }>({ past: [], future: [] });
+  const graphHistory = useRef<{ past: FlowchartGraph[]; future: FlowchartGraph[] }>({
+    past: [],
+    future: [],
+  });
   const copiedFileRef = useRef<ExplorerFile | null>(null);
   const copiedNodeRef = useRef<FlowchartNode | null>(null);
 
-  // Files, Folders & Tabs State (VS Code File Explorer isolated per project)
-  const [explorerFiles, setExplorerFiles] = useState<ExplorerFile[]>(() => {
-    if (typeof window !== "undefined") {
-      const initialWs = loadProjectWorkspace(window.localStorage, project);
-      return initialWs.files as ExplorerFile[];
-    }
-    return getDefaultProjectWorkspace(project).files as ExplorerFile[];
-  });
-  const [explorerFolders, setExplorerFolders] = useState<ExplorerFolder[]>(() => {
-    if (typeof window !== "undefined") {
-      const initialWs = loadProjectWorkspace(window.localStorage, project);
-      return initialWs.folders as ExplorerFolder[];
-    }
-    return getDefaultProjectWorkspace(project).folders as ExplorerFolder[];
-  });
-  const [openTabs, setOpenTabs] = useState<string[]>(() => {
-    if (typeof window !== "undefined") {
-      const initialWs = loadProjectWorkspace(window.localStorage, project);
-      return initialWs.openTabs;
-    }
-    return ["main.fc", "algorithm.ps", "notes.txt"];
-  });
-  const [activeTab, setActiveTab] = useState<string>(() => {
-    if (typeof window !== "undefined") {
-      const initialWs = loadProjectWorkspace(window.localStorage, project);
-      return initialWs.activeTab;
-    }
-    return "main.fc";
-  });
+  // Files, Folders & Tabs State
+  // IMPORTANT: Do NOT read localStorage during initial render.
+  // localStorage is loaded inside useEffect after hydration.
+  const initialWorkspace = getDefaultProjectWorkspace(project);
+
+  const [explorerFiles, setExplorerFiles] = useState<ExplorerFile[]>(
+    () => initialWorkspace.files as ExplorerFile[]
+  );
+
+  const [explorerFolders, setExplorerFolders] = useState<ExplorerFolder[]>(
+    () => initialWorkspace.folders as ExplorerFolder[]
+  );
+
+  const [openTabs, setOpenTabs] = useState<string[]>(
+    () => initialWorkspace.openTabs
+  );
+
+  const [activeTab, setActiveTab] = useState<string>(
+    () => initialWorkspace.activeTab
+  );
 
   // Inline Explorer Creation State (VS Code style)
   const [isCreatingItem, setIsCreatingItem] = useState<"file" | "folder" | null>(null);
