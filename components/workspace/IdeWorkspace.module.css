@@ -2971,3 +2971,161 @@
   border-color: #38bdf8;
   transform: translateY(-1px);
 }
+
+/* ==========================================================================\n   MOBILE PWA NAVIGATION\n   ========================================================================== */
+.mobileBottomNav {
+  display: none;
+}
+
+.mobileBottomNavItem {
+  border: 0;
+  background: transparent;
+  color: #8f96a3;
+  min-height: 56px;
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.mobileBottomNavItem:active {
+  color: #d48332;
+}
+
+.mobileBottomNavIcon {
+  width: 20px;
+  height: 20px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.mobileBottomNavIcon svg {
+  width: 20px;
+  height: 20px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+@media (max-width: 768px) {
+  .ide {
+    bottom: 60px;
+    height: calc(100% - 60px);
+  }
+
+  .titlebar {
+    height: 42px;
+    padding: 0 10px;
+  }
+
+  .titlebarLogoText {
+    font-size: 13px;
+  }
+
+  .titlebarMenus,
+  .titlebarCenter {
+    display: none !important;
+  }
+
+  .titlebarRight {
+    margin-left: auto;
+  }
+
+  .activityBar {
+    display: none !important;
+  }
+
+  .sidebar {
+    position: absolute;
+    z-index: 70;
+    top: 42px;
+    left: 0;
+    bottom: 0;
+    width: min(88vw, 320px);
+    box-shadow: 8px 0 30px rgba(0, 0, 0, 0.35);
+  }
+
+  .sidebarHidden {
+    display: none !important;
+  }
+
+  .rightPanel {
+    position: absolute;
+    z-index: 65;
+    top: 42px;
+    right: 0;
+    bottom: 0;
+    width: min(92vw, 360px);
+    box-shadow: -8px 0 30px rgba(0, 0, 0, 0.35);
+  }
+
+  .rightPanelHidden {
+    display: none !important;
+  }
+
+  .bottomPanel {
+    position: absolute;
+    z-index: 60;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    max-height: 72vh;
+  }
+
+  .bottomPanelMaximized {
+    height: 78vh !important;
+    max-height: 78vh;
+  }
+
+  .mobileBottomNav {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 100000;
+    display: flex;
+    align-items: stretch;
+    min-height: 60px;
+    padding: 2px 8px max(2px, env(safe-area-inset-bottom));
+    background: rgba(24, 25, 31, 0.97);
+    border-top: 1px solid #3c3c3c;
+    box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.22);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+  }
+
+  .mobileBottomNavItem {
+    min-height: 56px;
+  }
+
+  .mobileBottomNavItem:focus-visible {
+    outline: 2px solid #d48332;
+    outline-offset: -2px;
+    border-radius: 8px;
+  }
+
+  .flowchartWorkspace,
+  .flowchartContentArea,
+  .flowchartCenterColumn {
+    min-height: 0;
+  }
+
+  .ideBreadcrumbsBar {
+    min-height: 32px;
+  }
+
+  .codeGenActions {
+    flex-wrap: wrap;
+  }
+}

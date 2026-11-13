@@ -123,44 +123,91 @@ interface ExplorerFolder {
   isOpen: boolean;
 }
 
-export default function IdeWorkspace(): React.JSX.Element {
-  // Main Project State
-  // IMPORTANT: Keep the initial render deterministic so that
-  // server HTML and client HTML are identical during hydration.
-  const [project, setProject] = useState<ProjectEnvelope>(() =>
-    createProject({
-      name: "My First Algorithm",
-    }) as unknown as ProjectEnvelope
-  );
+function MobileBottomNav({
+  onFiles,
+  onCanvas,
+  onCode,
+  onRun,
+}: {
+  onFiles: () => void;
+  onCanvas: () => void;
+  onCode: () => void;
+  onRun: () => void;
+}): React.JSX.Element {
+  const items = [
+    { key: "files", label: "Files", onClick: onFiles, icon: "files" },
+    { key: "canvas", label: "Canvas", onClick: onCanvas, icon: "canvas" },
+    { key: "code", label: "Code", onClick: onCode, icon: "code" },
+    { key: "run", label: "Run", onClick: onRun, icon: "run" },
+  ] as const;
 
+  const icons: Record<string, React.ReactNode> = {
+    files: (
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M4 5.5A1.5 1.5 0 0 1 5.5 4H10l2 2h6.5A1.5 1.5 0 0 1 20 7.5v10A1.5 1.5 0 0 1 18.5 19h-13A1.5 1.5 0 0 1 4 17.5z" />
+        <path d="M4 8h16" />
+      </svg>
+    ),
+    canvas: (
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <rect x="4" y="4" width="6" height="6" rx="1" />
+        <rect x="14" y="14" width="6" height="6" rx="1" />
+        <path d="M10 7h4a2 2 0 0 1 2 2v5M7 10v4a2 2 0 0 0 2 2h5" />
+      </svg>
+    ),
+    code: (
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="m8 8-4 4 4 4M16 8l4 4-4 4M14 5l-4 14" />
+      </svg>
+    ),
+    run: (
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="m8 5 11 7-11 7z" fill="currentColor" stroke="none" />
+      </svg>
+    ),
+  };
+
+  return (
+    <nav className={styles.mobileBottomNav} aria-label="Mobile workspace navigation">
+      {items.map((item) => (
+        <button
+          key={item.key}
+          type="button"
+          className={styles.mobileBottomNavItem}
+          onClick={item.onClick}
+          aria-label={item.label}
+        >
+          <span className={styles.mobileBottomNavIcon}>{icons[item.icon]}</span>
+          <span>{item.label}</span>
+        </button>
+      ))}
+    </nav>
+  );
+}
+
+export default function IdeWorkspace(): React.JSX.Element {
+  // Main Project State: initialize from existing saved projects or start fresh
+  const [project, setProject] = useState<ProjectEnvelope>(() =>
+    createProject({ name: "My First Algorithm" }) as unknown as ProjectEnvelope
+  );
   const [savedProjects, setSavedProjects] = useState<ProjectEnvelope[]>([]);
   const storeRef = useRef<any>(null);
-  const graphHistory = useRef<{ past: FlowchartGraph[]; future: FlowchartGraph[] }>({
-    past: [],
-    future: [],
-  });
+  const graphHistory = useRef<{ past: FlowchartGraph[]; future: FlowchartGraph[] }>({ past: [], future: [] });
   const copiedFileRef = useRef<ExplorerFile | null>(null);
   const copiedNodeRef = useRef<FlowchartNode | null>(null);
 
-  // Files, Folders & Tabs State
-  // IMPORTANT: Do NOT read localStorage during initial render.
-  // localStorage is loaded inside useEffect after hydration.
-  const initialWorkspace = getDefaultProjectWorkspace(project);
-
+  // Files, Folders & Tabs State (VS Code File Explorer isolated per project)
   const [explorerFiles, setExplorerFiles] = useState<ExplorerFile[]>(
-    () => initialWorkspace.files as ExplorerFile[]
-  );
-
+  () => getDefaultProjectWorkspace(project).files as ExplorerFile[]
+);
   const [explorerFolders, setExplorerFolders] = useState<ExplorerFolder[]>(
-    () => initialWorkspace.folders as ExplorerFolder[]
+    () => getDefaultProjectWorkspace(project).folders as ExplorerFolder[]
   );
-
   const [openTabs, setOpenTabs] = useState<string[]>(
-    () => initialWorkspace.openTabs
+    () => getDefaultProjectWorkspace(project).openTabs
   );
-
   const [activeTab, setActiveTab] = useState<string>(
-    () => initialWorkspace.activeTab
+    () => getDefaultProjectWorkspace(project).activeTab
   );
 
   // Inline Explorer Creation State (VS Code style)
@@ -6847,6 +6894,34 @@ export default function IdeWorkspace(): React.JSX.Element {
           </section>
         </div>
       )}
+      <MobileBottomNav
+        onFiles={() => {
+          setActiveActivity("explorer");
+          setLeftSidebarCollapsed(false);
+          setRightSidebarCollapsed(true);
+          setBottomPanelCollapsed(true);
+        }}
+        onCanvas={() => {
+          setLeftSidebarCollapsed(true);
+          setRightSidebarCollapsed(true);
+          setBottomPanelCollapsed(true);
+        }}
+        onCode={() => {
+          setLeftSidebarCollapsed(true);
+          setRightSidebarCollapsed(true);
+          setBottomPanelCollapsed(false);
+          setBottomPanelMaximized(true);
+          setBottomTab("generatedCode");
+        }}
+        onRun={() => {
+          setLeftSidebarCollapsed(true);
+          setRightSidebarCollapsed(true);
+          setBottomPanelCollapsed(false);
+          setBottomPanelMaximized(false);
+          setBottomTab("terminal");
+          setTimeout(() => runProgram(), 0);
+        }}
+      />
     </div>
   );
 }
