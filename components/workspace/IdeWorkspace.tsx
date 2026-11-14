@@ -1,5 +1,7 @@
 "use client";
 
+import MobileCode from "./mobile/MobileCode";
+import MobileRun from "./mobile/MobileRun";
 import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import Link from "next/link";
 import styles from "./IdeWorkspace.module.css";
@@ -45,6 +47,7 @@ import { generateAstTrace } from "@/core/trace-engine.js";
 import { parsePseudocodeToFlowchart } from "@/core/pseudocode-parser.js";
 import { explainFlowchartToLearner } from "@/core/flowchart-explanation.js";
 import LogicTracer from "@/components/tracer/LogicTracer";
+import MobileWorkspace from "./mobile/MobileWorkspace";
 import type {
   ProjectEnvelope,
   FlowchartGraph,
@@ -52,6 +55,7 @@ import type {
   FlowchartEdge,
   ScalarType,
 } from "@/types/contracts";
+import MobileFiles from "./mobile/MobileFiles";
 
 const SAMPLE_FACTORIES: Record<string, () => any> = {
   "even-odd": createEvenOddExample,
@@ -121,68 +125,6 @@ interface ExplorerFolder {
   id: string;
   name: string;
   isOpen: boolean;
-}
-
-function MobileBottomNav({
-  onFiles,
-  onCanvas,
-  onCode,
-  onRun,
-}: {
-  onFiles: () => void;
-  onCanvas: () => void;
-  onCode: () => void;
-  onRun: () => void;
-}): React.JSX.Element {
-  const items = [
-    { key: "files", label: "Files", onClick: onFiles, icon: "files" },
-    { key: "canvas", label: "Canvas", onClick: onCanvas, icon: "canvas" },
-    { key: "code", label: "Code", onClick: onCode, icon: "code" },
-    { key: "run", label: "Run", onClick: onRun, icon: "run" },
-  ] as const;
-
-  const icons: Record<string, React.ReactNode> = {
-    files: (
-      <svg viewBox="0 0 24 24" aria-hidden="true">
-        <path d="M4 5.5A1.5 1.5 0 0 1 5.5 4H10l2 2h6.5A1.5 1.5 0 0 1 20 7.5v10A1.5 1.5 0 0 1 18.5 19h-13A1.5 1.5 0 0 1 4 17.5z" />
-        <path d="M4 8h16" />
-      </svg>
-    ),
-    canvas: (
-      <svg viewBox="0 0 24 24" aria-hidden="true">
-        <rect x="4" y="4" width="6" height="6" rx="1" />
-        <rect x="14" y="14" width="6" height="6" rx="1" />
-        <path d="M10 7h4a2 2 0 0 1 2 2v5M7 10v4a2 2 0 0 0 2 2h5" />
-      </svg>
-    ),
-    code: (
-      <svg viewBox="0 0 24 24" aria-hidden="true">
-        <path d="m8 8-4 4 4 4M16 8l4 4-4 4M14 5l-4 14" />
-      </svg>
-    ),
-    run: (
-      <svg viewBox="0 0 24 24" aria-hidden="true">
-        <path d="m8 5 11 7-11 7z" fill="currentColor" stroke="none" />
-      </svg>
-    ),
-  };
-
-  return (
-    <nav className={styles.mobileBottomNav} aria-label="Mobile workspace navigation">
-      {items.map((item) => (
-        <button
-          key={item.key}
-          type="button"
-          className={styles.mobileBottomNavItem}
-          onClick={item.onClick}
-          aria-label={item.label}
-        >
-          <span className={styles.mobileBottomNavIcon}>{icons[item.icon]}</span>
-          <span>{item.label}</span>
-        </button>
-      ))}
-    </nav>
-  );
 }
 
 export default function IdeWorkspace(): React.JSX.Element {
@@ -6894,34 +6836,152 @@ export default function IdeWorkspace(): React.JSX.Element {
           </section>
         </div>
       )}
-      <MobileBottomNav
-        onFiles={() => {
-          setActiveActivity("explorer");
-          setLeftSidebarCollapsed(false);
-          setRightSidebarCollapsed(true);
-          setBottomPanelCollapsed(true);
-        }}
-        onCanvas={() => {
-          setLeftSidebarCollapsed(true);
-          setRightSidebarCollapsed(true);
-          setBottomPanelCollapsed(true);
-        }}
-        onCode={() => {
-          setLeftSidebarCollapsed(true);
-          setRightSidebarCollapsed(true);
-          setBottomPanelCollapsed(false);
-          setBottomPanelMaximized(true);
-          setBottomTab("generatedCode");
-        }}
+      <MobileWorkspace
+        fileName={activeTab}
+            code={
+    <MobileCode
+      code={generatedCodes}
+      language={codeGenLang}
+      onLanguageChange={setCodeGenLang}
+      fileName={activeTab}
+      onCopy={() => {
+        navigator.clipboard?.writeText(generatedCodes[codeGenLang]);
+        setNotice(
+          `${codeGenLang.toUpperCase()} code copied to clipboard!`
+        );
+        setTimeout(() => setNotice(""), 2500);
+      }}
+    />
+  }
+files={
+    <MobileFiles
+      files={explorerFiles}
+      folders={explorerFolders}
+      activeTab={activeTab}
+      onOpenFile={handleOpenFile}
+      onToggleFolder={(folderId) => {
+        setExplorerFolders((prev) =>
+          prev.map((folder) =>
+            folder.id === folderId
+              ? { ...folder, isOpen: !folder.isOpen }
+              : folder
+          )
+        );
+      }}
+    />
+  }
+  run={
+    <MobileRun
+      terminalHistory={terminalHistory}
+      waitingForInput={waitingForInput}
+      onRun={() => runProgram()}
+      onClear={() => {
+        setTerminalHistory([]);
+        setWaitingForInput(null);
+        setCollectedInputs({});
+      }}
+      onSubmitInput={(value) => {
+        if (!waitingForInput) return;
+
+        const { varName, varType, prompt: vPrompt, targetFile } =
+          waitingForInput;
+
+        let parsedVal: any = value;
+
+        if (varType === "int" || varType === "integer") {
+          const num = parseInt(value, 10);
+          parsedVal = isNaN(num) ? 0 : num;
+        } else if (
+          varType === "float" ||
+          varType === "double" ||
+          varType === "number"
+        ) {
+          const num = parseFloat(value);
+          parsedVal = isNaN(num) ? 0.0 : num;
+        } else if (
+          varType === "bool" ||
+          varType === "boolean"
+        ) {
+          parsedVal =
+            value.toLowerCase() === "true" || value === "1";
+        }
+
+        const nextInputs = {
+          ...collectedInputs,
+          [varName]: parsedVal,
+        };
+
+        setCollectedInputs(nextInputs);
+        setTerminalHistory((prev) => [
+          ...prev,
+          `${vPrompt}${value}`,
+        ]);
+
+        runProgram(nextInputs, targetFile);
+      }}
+    />
+  }
+canvas={
+<div className={styles.mobileCanvasContainer}>
+        <FlowCanvas
+                    flowchart={project.flowchart as any}
+                    selected={selectedNode}
+                    setSelected={(id) => {
+                      setSelectedNode(id || "");
+                      if (id) {
+                        setSelectedEdge(null);
+                        setRightSidebarCollapsed(false);
+                        setPropsWindowOpen(true);
+                        setPropsWindowCollapsed(false);
+                      }
+                    }}
+                    moveNode={moveNode}
+                    zoom={zoom}
+                    setZoom={setZoom}
+                    selectedEdge={selectedEdge}
+                    setSelectedEdge={(id) => {
+                      setSelectedEdge(id);
+                      if (id) setSelectedNode("");
+                    }}
+                    onDeleteEdge={removeEdge}
+                    onDeleteNode={deleteNode}
+                    onConnect={addEdge}
+                    onDuplicate={(node) => duplicateNode(node as FlowchartNode)}
+                    snapToGrid={snapToGrid}
+                    showGrid={showGrid}
+                    canvasTheme={canvasTheme}
+                    edgeRouting={edgeRouting}
+                    showMinimap={showMinimap}
+                    onAddNodeAtPosition={addNodeAtPosition}
+                    emptyWatermark={
+                      <div className={styles.canvasEmpty}>
+                        <svg className={styles.canvasEmptyIcon} viewBox="0 0 48 48" fill="none" stroke="currentColor" strokeWidth="2">
+                          <rect x="18" y="6" width="12" height="8" rx="2" />
+                          <path d="M24 14V22" />
+                          <path d="M12 22H36" />
+                          <path d="M12 22V30" />
+                          <path d="M36 22V30" />
+                          <rect x="6" y="30" width="12" height="8" rx="2" />
+                          <rect x="30" y="30" width="12" height="8" rx="2" />
+                        </svg>
+                        <h3 className={styles.canvasEmptyTitle}>Start drawing your flowchart</h3>
+                        <p className={styles.canvasEmptySub}>Drag and drop shapes or click to add</p>
+                      </div>
+                    }
+                  />
+
+        </div>
+        }
         onRun={() => {
-          setLeftSidebarCollapsed(true);
-          setRightSidebarCollapsed(true);
-          setBottomPanelCollapsed(false);
-          setBottomPanelMaximized(false);
-          setBottomTab("terminal");
           setTimeout(() => runProgram(), 0);
         }}
       />
     </div>
   );
 }
+
+
+
+
+
+
