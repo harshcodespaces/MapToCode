@@ -2,6 +2,7 @@
 
 import MobileCode from "./mobile/MobileCode";
 import MobileRun from "./mobile/MobileRun";
+import MobileBlockPicker from "./mobile/MobileBlockPicker";
 import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import Link from "next/link";
 import styles from "./IdeWorkspace.module.css";
@@ -6921,6 +6922,7 @@ files={
       }}
     />
   }
+
 canvas={
 <div className={styles.mobileCanvasContainer}>
         <FlowCanvas
@@ -6969,6 +6971,12 @@ canvas={
                       </div>
                     }
                   />
+      <MobileBlockPicker
+        hasStartNode={project.flowchart.nodes.some(
+          (node) => node.kind === "start"
+        )}
+        onAddBlock={(kind) => addNode(kind)}
+      />
 
         </div>
         }
@@ -6979,6 +6987,10 @@ canvas={
     </div>
   );
 }
+
+
+
+
 
 
 

@@ -830,3 +830,170 @@
   font-size: 11px;
   font-weight: 700;
 }
+
+/* Mobile Canvas — Add Block Picker */
+
+.mobileBlockPicker {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 40;
+}
+
+.mobileAddBlockButton {
+  position: absolute;
+  right: 16px;
+  bottom: 16px;
+  width: 52px;
+  height: 52px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 50%;
+  background: #d98a08;
+  color: #ffffff;
+  font-size: 30px;
+  font-weight: 400;
+  line-height: 1;
+  box-shadow:
+    0 6px 18px rgba(0, 0, 0, 0.35),
+    0 0 0 1px rgba(255, 255, 255, 0.08);
+  cursor: pointer;
+  pointer-events: auto;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.mobileAddBlockButton:active {
+  transform: scale(0.94);
+}
+
+.mobileBlockPickerBackdrop {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: rgba(0, 0, 0, 0.42);
+  pointer-events: auto;
+}
+
+.mobileBlockSheet {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 8px 14px 18px;
+  border-top: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 18px 18px 0 0;
+  background: #17191c;
+  box-shadow: 0 -12px 35px rgba(0, 0, 0, 0.35);
+  pointer-events: auto;
+}
+
+.mobileBlockSheetHandle {
+  width: 36px;
+  height: 4px;
+  margin: 0 auto 12px;
+  border-radius: 999px;
+  background: #555b63;
+}
+
+.mobileBlockSheetHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.mobileBlockSheetTitle {
+  display: block;
+  color: #f0f3f6;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.mobileBlockSheetSubtitle {
+  display: block;
+  margin-top: 3px;
+  color: #7f8791;
+  font-size: 9px;
+}
+
+.mobileBlockClose {
+  width: 34px;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 9px;
+  background: #25282d;
+  color: #c8cdd3;
+  font-size: 22px;
+  line-height: 1;
+}
+
+.mobileBlockGrid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.mobileBlockOption {
+  min-width: 0;
+  min-height: 72px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 5px;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 11px;
+  background: #202328;
+  color: #d9dde2;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.mobileBlockOption:active {
+  transform: scale(0.97);
+  background: #292d33;
+}
+
+.mobileBlockOptionIcon {
+  font-size: 21px;
+  line-height: 1;
+}
+
+.mobileBlockOptionLabel {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+  color: #d9dde2;
+  font-size: 9px;
+  font-weight: 600;
+}
+
+.mobileBlockOptionDisabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.mobileBlockOptionStatus {
+  color: #777f89;
+  font-size: 8px;
+}
+
+@media (max-width: 380px) {
+  .mobileBlockGrid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .mobileBlockOption {
+    min-height: 68px;
+  }
+}
